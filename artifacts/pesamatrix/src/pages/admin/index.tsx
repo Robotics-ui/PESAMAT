@@ -41,6 +41,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import {
   Shield, Users, CreditCard, Settings, RefreshCw, TrendingUp, AlertCircle,
   CheckCircle2, Eye, EyeOff, Webhook, Copy, Check, XCircle, Activity,
@@ -2373,32 +2374,74 @@ function CopyFactoryStrategiesTab() {
 // ── Daily P/L Chart ───────────────────────────────────────────────────────────
 
 type PlRow = { date: string; profit: number; trades: number; wins: number; losses: number };
-type PlData = { days: number; dailyRows: PlRow[]; totalProfit: number; totalTrades: number; totalWins: number; winRate: number };
+type PlTrade = {
+  id: number; date: string; symbol: string | null; side: string | null;
+  volume: number | null; profit: number | null; slaveAccountId: number | null; slaveAccountLabel: string | null;
+};
+type PlPagination = { page: number; pageSize: number; totalCount: number; totalPages: number };
+type PlData = {
+  days: number; dailyRows: PlRow[]; totalProfit: number; totalTrades: number; totalWins: number; winRate: number;
+  trades: PlTrade[]; pagination: PlPagination;
+};
+type SlaveAccountOption = { id: number; label: string };
+type Outcome = "all" | "win" | "loss";
 
 function DailyPlChartCard() {
   const { token } = useAuth();
   const [data, setData] = useState<PlData | null>(null);
   const [loading, setLoading] = useState(true);
   const [windowDays, setWindowDays] = useState<30 | 90>(30);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [outcome, setOutcome] = useState<Outcome>("all");
+  const [slaveAccountId, setSlaveAccountId] = useState<string>("all");
+  const [slaveAccounts, setSlaveAccounts] = useState<SlaveAccountOption[]>([]);
+  const [page, setPage] = useState(1);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const fetchPl = useCallback(async (days: number, silent = false) => {
+  useEffect(() => {
+    if (!token) return;
+    fetch("/api/admin/trade-pl/slave-accounts", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list: SlaveAccountOption[]) => setSlaveAccounts(list))
+      .catch(() => { /* silent */ });
+  }, [token]);
+
+  const fetchPl = useCallback(async (silent = false) => {
     if (!token) return;
     if (!silent) setLoading(true);
     try {
-      const res = await fetch(`/api/admin/trade-pl?days=${days}`, {
+      const params = new URLSearchParams();
+      if (startDate && endDate) {
+        params.set("startDate", startDate);
+        params.set("endDate", endDate);
+      } else {
+        params.set("days", String(windowDays));
+      }
+      if (outcome !== "all") params.set("outcome", outcome);
+      if (slaveAccountId !== "all") params.set("slaveAccountId", slaveAccountId);
+      params.set("page", String(page));
+      params.set("pageSize", "20");
+
+      const res = await fetch(`/api/admin/trade-pl?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) setData(await res.json() as PlData);
     } catch { /* silent */ }
     finally { setLoading(false); }
-  }, [token]);
+  }, [token, windowDays, startDate, endDate, outcome, slaveAccountId, page]);
 
   useEffect(() => {
-    fetchPl(windowDays);
-    intervalRef.current = setInterval(() => fetchPl(windowDays, true), 60_000);
+    fetchPl();
+    intervalRef.current = setInterval(() => fetchPl(true), 60_000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [fetchPl, windowDays]);
+  }, [fetchPl]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [windowDays, startDate, endDate, outcome, slaveAccountId]);
+
+  const clearDateRange = () => { setStartDate(""); setEndDate(""); };
 
   const fmt = (n: number) =>
     n.toLocaleString("en-US", { style: "currency", currency: "KES", maximumFractionDigits: 0 });
@@ -2449,7 +2492,7 @@ function DailyPlChartCard() {
               </button>
             ))}
             <button
-              onClick={() => fetchPl(windowDays)}
+              onClick={() => fetchPl()}
               disabled={loading}
               className="ml-1 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
               title="Refresh"
@@ -2460,6 +2503,63 @@ function DailyPlChartCard() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Filters */}
+        <div className="flex flex-wrap items-end gap-2 rounded-lg border border-border bg-muted/10 px-3 py-2.5">
+          <div className="flex flex-col gap-1">
+            <Label className="text-[10px] text-muted-foreground">From</Label>
+            <Input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="h-7 w-[130px] text-xs"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-[10px] text-muted-foreground">To</Label>
+            <Input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="h-7 w-[130px] text-xs"
+            />
+          </div>
+          {(startDate || endDate) && (
+            <button
+              onClick={clearDateRange}
+              className="h-7 text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+            >
+              Clear range
+            </button>
+          )}
+          <div className="flex flex-col gap-1">
+            <Label className="text-[10px] text-muted-foreground">Outcome</Label>
+            <Select value={outcome} onValueChange={(v) => setOutcome(v as Outcome)}>
+              <SelectTrigger className="h-7 w-[110px] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="win">Wins</SelectItem>
+                <SelectItem value="loss">Losses</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-[10px] text-muted-foreground">Slave Account</Label>
+            <Select value={slaveAccountId} onValueChange={setSlaveAccountId}>
+              <SelectTrigger className="h-7 w-[180px] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All accounts</SelectItem>
+                {slaveAccounts.map((a) => (
+                  <SelectItem key={a.id} value={String(a.id)}>{a.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
         {/* Summary stats */}
         <div className="grid grid-cols-4 gap-3">
           {[
@@ -2518,6 +2618,81 @@ function DailyPlChartCard() {
             </BarChart>
           </ResponsiveContainer>
         )}
+
+        {/* Trade drill-down list */}
+        <div className="border-t border-border pt-3">
+          <p className="text-xs font-medium text-foreground mb-2">
+            Trades {data?.pagination ? `(${data.pagination.totalCount})` : ""}
+          </p>
+          {loading ? (
+            <div className="h-24 rounded-lg bg-muted/20 animate-pulse" />
+          ) : !data || data.trades.length === 0 ? (
+            <div className="py-6 text-center text-xs text-muted-foreground border border-dashed border-border rounded-lg">
+              No trades match the current filters.
+            </div>
+          ) : (
+            <>
+              <div className="overflow-x-auto rounded-lg border border-border">
+                <table className="w-full text-xs">
+                  <thead className="bg-muted/30 text-muted-foreground">
+                    <tr>
+                      <th className="text-left font-medium px-2.5 py-1.5">Date</th>
+                      <th className="text-left font-medium px-2.5 py-1.5">Symbol</th>
+                      <th className="text-left font-medium px-2.5 py-1.5">Side</th>
+                      <th className="text-right font-medium px-2.5 py-1.5">Volume</th>
+                      <th className="text-right font-medium px-2.5 py-1.5">P/L</th>
+                      <th className="text-left font-medium px-2.5 py-1.5">Slave Account</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.trades.map((t) => (
+                      <tr key={t.id} className="border-t border-border/60">
+                        <td className="px-2.5 py-1.5 text-muted-foreground whitespace-nowrap">
+                          {new Date(t.date).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                        </td>
+                        <td className="px-2.5 py-1.5 text-foreground">{t.symbol ?? "—"}</td>
+                        <td className="px-2.5 py-1.5 text-muted-foreground uppercase">{t.side ?? "—"}</td>
+                        <td className="px-2.5 py-1.5 text-right text-foreground">{t.volume ?? "—"}</td>
+                        <td className={cn("px-2.5 py-1.5 text-right font-medium", (t.profit ?? 0) >= 0 ? "text-green-400" : "text-red-400")}>
+                          {t.profit !== null ? fmt(t.profit) : "—"}
+                        </td>
+                        <td className="px-2.5 py-1.5 text-muted-foreground truncate max-w-[180px]">{t.slaveAccountLabel ?? "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {data.pagination.totalPages > 1 && (
+                <div className="flex items-center justify-between mt-2">
+                  <p className="text-[11px] text-muted-foreground">
+                    Page {data.pagination.page} of {data.pagination.totalPages}
+                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-6 px-2 text-xs"
+                      disabled={page <= 1}
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    >
+                      Prev
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-6 px-2 text-xs"
+                      disabled={page >= data.pagination.totalPages}
+                      onClick={() => setPage((p) => Math.min(data.pagination.totalPages, p + 1))}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

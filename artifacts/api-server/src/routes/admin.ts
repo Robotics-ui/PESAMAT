@@ -982,27 +982,75 @@ router.get("/admin/copyfactory-audit", authenticate, requireAdmin, async (_req, 
   });
 });
 
-// GET /admin/trade-pl — daily P/L aggregation from trade_logs (last 30 days)
+// Admin: lightweight list of slave accounts for the trade-pl filter dropdown
+router.get("/admin/trade-pl/slave-accounts", authenticate, requireAdmin, async (_req, res): Promise<void> => {
+  const rows = await db
+    .select({
+      id: slaveAccountsTable.id,
+      mt5Login: slaveAccountsTable.mt5Login,
+      broker: slaveAccountsTable.broker,
+    })
+    .from(slaveAccountsTable)
+    .orderBy(asc(slaveAccountsTable.id));
+
+  res.json(rows.map((r: { id: number; mt5Login: string; broker: string }) => ({ id: r.id, label: `#${r.id} — ${r.mt5Login} (${r.broker})` })));
+});
+
+// GET /admin/trade-pl — daily P/L aggregation + paginated trade list from trade_logs, with filters
 router.get("/admin/trade-pl", authenticate, requireAdmin, async (req, res): Promise<void> => {
   const daysParam = parseInt(String(req.query.days ?? "30"), 10);
   const days = isNaN(daysParam) || daysParam < 1 ? 30 : Math.min(daysParam, 365);
 
-  const result = await db.execute(sql`
+  const startDateParam = req.query.startDate ? String(req.query.startDate) : null;
+  const endDateParam = req.query.endDate ? String(req.query.endDate) : null;
+  const validDate = (v: string | null): boolean => !!v && !isNaN(Date.parse(v));
+
+  const outcomeParam = String(req.query.outcome ?? "all");
+  const outcome = ["win", "loss", "all"].includes(outcomeParam) ? outcomeParam : "all";
+
+  const slaveAccountIdParam = req.query.slaveAccountId ? parseInt(String(req.query.slaveAccountId), 10) : null;
+  const slaveAccountId = slaveAccountIdParam && !isNaN(slaveAccountIdParam) ? slaveAccountIdParam : null;
+
+  const pageParam = parseInt(String(req.query.page ?? "1"), 10);
+  const page = isNaN(pageParam) || pageParam < 1 ? 1 : pageParam;
+  const pageSizeParam = parseInt(String(req.query.pageSize ?? "20"), 10);
+  const pageSize = isNaN(pageSizeParam) || pageSizeParam < 1 ? 20 : Math.min(pageSizeParam, 100);
+  const offset = (page - 1) * pageSize;
+
+  const conditions = [sql`t.profit IS NOT NULL`];
+
+  if (validDate(startDateParam) && validDate(endDateParam)) {
+    conditions.push(sql`t.created_at >= ${startDateParam}::date`);
+    conditions.push(sql`t.created_at < (${endDateParam}::date + interval '1 day')`);
+  } else if (validDate(startDateParam)) {
+    conditions.push(sql`t.created_at >= ${startDateParam}::date`);
+  } else if (validDate(endDateParam)) {
+    conditions.push(sql`t.created_at < (${endDateParam}::date + interval '1 day')`);
+  } else {
+    conditions.push(sql`t.created_at >= NOW() - (${days} || ' days')::interval`);
+  }
+
+  if (outcome === "win") conditions.push(sql`t.profit::numeric > 0`);
+  if (outcome === "loss") conditions.push(sql`t.profit::numeric < 0`);
+  if (slaveAccountId !== null) conditions.push(sql`t.slave_account_id = ${slaveAccountId}`);
+
+  const whereClause = sql.join(conditions, sql` AND `);
+
+  const dailyResult = await db.execute(sql`
     SELECT
-      DATE_TRUNC('day', created_at AT TIME ZONE 'UTC')::date::text AS day,
-      COALESCE(SUM(profit::numeric), 0)                            AS total_profit,
+      DATE_TRUNC('day', t.created_at AT TIME ZONE 'UTC')::date::text AS day,
+      COALESCE(SUM(t.profit::numeric), 0)                            AS total_profit,
       COUNT(*)                                                      AS total_trades,
-      COUNT(*) FILTER (WHERE profit::numeric > 0)                  AS wins,
-      COUNT(*) FILTER (WHERE profit::numeric < 0)                  AS losses
-    FROM   ${tradeLogsTable}
-    WHERE  created_at >= NOW() - (${days} || ' days')::interval
-      AND  profit IS NOT NULL
+      COUNT(*) FILTER (WHERE t.profit::numeric > 0)                  AS wins,
+      COUNT(*) FILTER (WHERE t.profit::numeric < 0)                  AS losses
+    FROM   ${tradeLogsTable} t
+    WHERE  ${whereClause}
     GROUP  BY 1
     ORDER  BY 1 ASC
   `);
 
-  type Row = { day: string; total_profit: string; total_trades: string; wins: string; losses: string };
-  const dailyRows = ((result as unknown as { rows: Row[] }).rows ?? []).map((r) => ({
+  type DailyRow = { day: string; total_profit: string; total_trades: string; wins: string; losses: string };
+  const dailyRows = ((dailyResult as unknown as { rows: DailyRow[] }).rows ?? []).map((r) => ({
     date: r.day,
     profit: parseFloat(r.total_profit),
     trades: parseInt(r.total_trades, 10),
@@ -1015,7 +1063,48 @@ router.get("/admin/trade-pl", authenticate, requireAdmin, async (req, res): Prom
   const totalWins    = dailyRows.reduce((s, r) => s + r.wins, 0);
   const winRate      = totalTrades > 0 ? Math.round((totalWins / totalTrades) * 100) : 0;
 
-  res.json({ days, dailyRows, totalProfit, totalTrades, totalWins, winRate });
+  const countResult = await db.execute(sql`
+    SELECT COUNT(*) AS count
+    FROM   ${tradeLogsTable} t
+    WHERE  ${whereClause}
+  `);
+  type CountRow = { count: string };
+  const totalCount = Number(((countResult as unknown as { rows: CountRow[] }).rows ?? [])[0]?.count ?? 0);
+  const totalPages = totalCount > 0 ? Math.ceil(totalCount / pageSize) : 0;
+
+  const tradesResult = await db.execute(sql`
+    SELECT
+      t.id, t.created_at, t.symbol, t.side, t.volume::numeric AS volume, t.profit::numeric AS profit,
+      t.slave_account_id, s.mt5_login, s.broker
+    FROM ${tradeLogsTable} t
+    LEFT JOIN ${slaveAccountsTable} s ON s.id = t.slave_account_id
+    WHERE ${whereClause}
+    ORDER BY t.created_at DESC
+    LIMIT ${pageSize} OFFSET ${offset}
+  `);
+
+  type TradeRow = {
+    id: number; created_at: string; symbol: string | null; side: string | null;
+    volume: string | null; profit: string | null; slave_account_id: number | null;
+    mt5_login: string | null; broker: string | null;
+  };
+  const trades = ((tradesResult as unknown as { rows: TradeRow[] }).rows ?? []).map((r) => ({
+    id: r.id,
+    date: r.created_at,
+    symbol: r.symbol,
+    side: r.side,
+    volume: r.volume ? parseFloat(r.volume) : null,
+    profit: r.profit ? parseFloat(r.profit) : null,
+    slaveAccountId: r.slave_account_id,
+    slaveAccountLabel: r.slave_account_id ? `#${r.slave_account_id} — ${r.mt5_login} (${r.broker})` : null,
+  }));
+
+  res.json({
+    days, dailyRows, totalProfit, totalTrades, totalWins, winRate,
+    filters: { startDate: startDateParam, endDate: endDateParam, outcome, slaveAccountId },
+    trades,
+    pagination: { page, pageSize, totalCount, totalPages },
+  });
 });
 
 // Admin: get all worker statuses
