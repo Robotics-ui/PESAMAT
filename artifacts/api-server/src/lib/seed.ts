@@ -1,5 +1,5 @@
 import { eq, sql } from "drizzle-orm";
-import { db, usersTable, subscriptionsTable, adminSettingsTable, referralSettingsTable } from "@workspace/db";
+import { db, usersTable, subscriptionsTable, adminSettingsTable, referralSettingsTable, fundingSettingsTable } from "@workspace/db";
 import { hashPassword } from "./auth";
 import { logger } from "./logger";
 
@@ -47,6 +47,20 @@ export async function seedDefaultAccounts(): Promise<void> {
     logger.info("Default accounts seeded (admin + demo trader)");
   } catch (err) {
     logger.error({ err }, "Failed to seed default accounts");
+  }
+}
+
+export async function seedFundingSettings(): Promise<void> {
+  try {
+    await db
+      .insert(fundingSettingsTable)
+      .values({ applicationFee: "5000", maxFundingAccounts: 10, fundingEnabled: true })
+      .onConflictDoNothing();
+    await db.execute(
+      sql`DELETE FROM funding_settings WHERE id NOT IN (SELECT MIN(id) FROM funding_settings)`
+    );
+  } catch (err) {
+    logger.error({ err }, "Failed to seed funding settings");
   }
 }
 

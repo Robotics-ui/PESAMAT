@@ -10,7 +10,7 @@ import { startScheduler } from "./lib/scheduler";
 import { repairStrategyCopyFactoryIds } from "./lib/copyfactorySync";
 import { startAccountPoller } from "./lib/accountPoller";
 import { startReconnectWorker } from "./lib/reconnectWorker";
-import { seedDefaultAccounts, seedReferralSettings } from "./lib/seed";
+import { seedDefaultAccounts, seedReferralSettings, seedFundingSettings } from "./lib/seed";
 import { startSmsWorker } from "./lib/smsWorker";
 import { seedDefaultTemplates, seedSmsSettings } from "./lib/smsService";
 import { startWorkerWatchdog } from "./lib/workerRegistry";
@@ -143,5 +143,7 @@ void seedSmsSettings();
 void seedDefaultTemplates();
 // Seed default referral reward milestones
 void seedReferralSettings();
+// Seed default funding program settings
+void seedFundingSettings();
 
 export default app;

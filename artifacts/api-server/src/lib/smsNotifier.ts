@@ -126,3 +126,51 @@ export function notifyReferralReward(opts: {
     }),
   );
 }
+
+export function notifyFundingApplicationSubmitted(opts: { userId: number; phone: string; name: string; appId: string }) {
+  fire(() =>
+    enqueueEventSms({
+      userId: opts.userId,
+      phone: opts.phone,
+      eventType: "funding_application_submitted",
+      vars: { name: opts.name, appId: opts.appId },
+      preferenceKey: "subscriptionAlerts",
+    }),
+  );
+}
+
+export function notifyFundingApplicationApproved(opts: { userId: number; phone: string; name: string }) {
+  fire(() =>
+    enqueueEventSms({
+      userId: opts.userId,
+      phone: opts.phone,
+      eventType: "funding_application_approved",
+      vars: { name: opts.name },
+      preferenceKey: "subscriptionAlerts",
+    }),
+  );
+}
+
+export function notifyFundingApplicationRejected(opts: { userId: number; phone: string; name: string }) {
+  fire(() =>
+    enqueueEventSms({
+      userId: opts.userId,
+      phone: opts.phone,
+      eventType: "funding_application_rejected",
+      vars: { name: opts.name },
+      preferenceKey: "subscriptionAlerts",
+    }),
+  );
+}
+
+export function notifyFundingApplicationFunded(opts: { userId: number; phone: string; name: string }) {
+  fire(() =>
+    enqueueEventSms({
+      userId: opts.userId,
+      phone: opts.phone,
+      eventType: "funding_application_funded",
+      vars: { name: opts.name },
+      preferenceKey: "subscriptionAlerts",
+    }),
+  );
+}

@@ -1,0 +1,70 @@
+Feature Request: Trader Funding Application Module
+Add a new "Account Funding" feature to the PesaMatrix web app.
+User Features
+Add a new menu item called Account Funding.
+Display an introduction explaining the funding program, eligibility requirements, rules, and terms.
+Allow traders to submit a funding application.
+Application Form
+Include the following fields:
+Full Name
+Email Address
+Phone Number
+Country
+Trading Experience
+Broker Name
+MT4/MT5 Account Number (optional)
+Account Type (Demo/Live)
+Trading Strategy
+Additional Notes
+Payment
+The application requires a non-refundable application fee.
+The application fee is configurable by the Admin.
+Integrate payment using the existing M-Pesa STK Push system.
+Mark the application as Pending Payment until payment is confirmed.
+Automatically update the status to Submitted after successful payment.
+Admin Features
+Create an Account Funding Admin Panel where the admin can:
+Set the application fee.
+Set the maximum number of accounts to fund.
+View the total number of applications received.
+View the number of funded accounts remaining.
+Enable or disable funding applications.
+Review each application.
+Approve or reject applications.
+Add internal notes.
+Change application status (Pending, Under Review, Approved, Rejected, Funded).
+Search and filter applications.
+Export applications to Excel or CSV.
+Dashboard
+Display:
+Total applications.
+Available funding slots.
+Approved applications.
+Rejected applications.
+Funded accounts.
+Total application fee revenue.
+Database
+Create tables for:
+funding_settings
+applicationFee
+maxFundingAccounts
+currentApplications
+fundingEnabled
+funding_applications
+applicant details
+payment status
+application status
+admin notes
+timestamps
+Validation
+Prevent applications when the maximum number of funding slots has been reached.
+Prevent duplicate applications using the same email or phone while one is still active.
+Require successful payment before submission.
+Notifications
+Send SMS and email confirmations after payment.
+Notify users when their application is approved, rejected, or funded.
+Security
+Only admins can modify funding settings.
+Protect all admin routes with authentication and role-based authorization.
+Log every admin action in the audit log.
+Use the existing React, Express, Drizzle ORM, PostgreSQL, and M-Pesa payment architecture already implemented in the PesaMatrix application. Ensure the feature is fully integrated with the current admin dashboard and follows the existing UI/UX style.
