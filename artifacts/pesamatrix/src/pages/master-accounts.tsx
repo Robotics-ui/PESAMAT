@@ -163,7 +163,7 @@ export default function MasterAccountsPage() {
   return (
     <AppLayout>
       <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-foreground">Master Accounts</h1>
             <p className="text-sm text-muted-foreground mt-1">Signal provider MT5 accounts — require admin approval before deployment</p>
@@ -172,10 +172,10 @@ export default function MasterAccountsPage() {
             {hasPolling && (
               <div className="flex items-center gap-1.5 text-xs text-blue-400">
                 <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                Auto-refreshing
+                <span className="hidden sm:inline">Auto-refreshing</span>
               </div>
             )}
-            <Button onClick={() => { setError(""); setOpen(true); }} className="bg-blue-600 hover:bg-blue-700">
+            <Button onClick={() => { setError(""); setOpen(true); }} className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
               <Plus className="h-4 w-4 mr-2" /> Add Master
             </Button>
           </div>
@@ -363,7 +363,7 @@ export default function MasterAccountsPage() {
                   ))}
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <Label>{form.platform === "mt4" ? "MT4" : "MT5"} Login</Label>
                   <Input placeholder="12345678" value={form.mt5Login} onChange={(e) => setForm({ ...form, mt5Login: e.target.value })} />

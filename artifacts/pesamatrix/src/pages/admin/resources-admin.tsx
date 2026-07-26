@@ -66,7 +66,7 @@ function ResourceDialog({ open, onClose, item, token }: { open: boolean; onClose
         <DialogHeader><DialogTitle>{item ? "Edit Resource" : "Add Resource"}</DialogTitle></DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-1"><Label>Title *</Label><Input value={form.title} onChange={(e) => set("title", e.target.value)} /></div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1"><Label>Category *</Label>
               <Select value={form.category} onValueChange={(v) => set("category", v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -123,14 +123,14 @@ export default function AdminResourcesPage() {
   return (
     <AppLayout>
       <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <BookOpen className="h-6 w-6 text-green-400" />
+            <BookOpen className="h-6 w-6 text-green-400 shrink-0" />
             <div><h1 className="text-xl font-bold text-foreground">Learning Resources</h1><p className="text-xs text-muted-foreground">Manage trading resources and links</p></div>
           </div>
           <div className="flex gap-2">
             <Button variant="ghost" size="icon" onClick={() => void refetch()}><RefreshCw className="h-4 w-4" /></Button>
-            <Button onClick={() => { setEditing(null); setFormOpen(true); }} className="bg-green-600 hover:bg-green-700 gap-2"><Plus className="h-4 w-4" /> Add Resource</Button>
+            <Button onClick={() => { setEditing(null); setFormOpen(true); }} className="bg-green-600 hover:bg-green-700 gap-2 flex-1 sm:flex-none"><Plus className="h-4 w-4" /> Add Resource</Button>
           </div>
         </div>
 

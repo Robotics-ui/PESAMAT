@@ -120,7 +120,7 @@ function FaqDialog({
               className="resize-none"
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Category</Label>
               <Select value={form.category} onValueChange={(v) => setForm((f) => ({ ...f, category: v }))}>
@@ -249,9 +249,9 @@ export default function AdminFaqPage() {
     <AppLayout>
       <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <HelpCircle className="h-6 w-6 text-blue-400" />
+            <HelpCircle className="h-6 w-6 text-blue-400 shrink-0" />
             <div>
               <h1 className="text-xl font-bold text-foreground">FAQ Management</h1>
               <p className="text-sm text-muted-foreground">Manage frequently asked questions</p>
@@ -261,7 +261,7 @@ export default function AdminFaqPage() {
             <Button variant="ghost" size="icon" onClick={() => void refetch()} className="text-muted-foreground">
               <RefreshCw className="h-4 w-4" />
             </Button>
-            <Button onClick={() => setDialogItem(null)} className="bg-blue-600 hover:bg-blue-700">
+            <Button onClick={() => setDialogItem(null)} className="bg-blue-600 hover:bg-blue-700 flex-1 sm:flex-none">
               <Plus className="h-4 w-4 mr-2" /> New FAQ
             </Button>
           </div>

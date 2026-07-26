@@ -109,14 +109,14 @@ export default function AdminAnnouncementsPage() {
   return (
     <AppLayout>
       <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <Bell className="h-6 w-6 text-blue-400" />
+            <Bell className="h-6 w-6 text-blue-400 shrink-0" />
             <div><h1 className="text-xl font-bold text-foreground">Announcements</h1><p className="text-xs text-muted-foreground">Manage platform announcements</p></div>
           </div>
           <div className="flex gap-2">
             <Button variant="ghost" size="icon" onClick={() => void refetch()}><RefreshCw className="h-4 w-4" /></Button>
-            <Button onClick={() => { setEditing(null); setFormOpen(true); }} className="bg-blue-600 hover:bg-blue-700 gap-2"><Plus className="h-4 w-4" /> New Announcement</Button>
+            <Button onClick={() => { setEditing(null); setFormOpen(true); }} className="bg-blue-600 hover:bg-blue-700 gap-2 flex-1 sm:flex-none"><Plus className="h-4 w-4" /> New Announcement</Button>
           </div>
         </div>
 

@@ -659,9 +659,9 @@ function SubscriptionCountdown({ endDate, daysLeft }: { endDate?: string | null;
   return (
     <Card className={`border-${urgent ? "orange" : "green"}-500/30 bg-${urgent ? "orange" : "green"}-500/5`}>
       <CardContent className="pt-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className={`h-10 w-10 rounded-full flex items-center justify-center ${urgent ? "bg-orange-500/20" : "bg-green-500/20"}`}>
+            <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${urgent ? "bg-orange-500/20" : "bg-green-500/20"}`}>
               <Clock className={`h-5 w-5 ${urgent ? "text-orange-400" : "text-green-400"}`} />
             </div>
             <div>

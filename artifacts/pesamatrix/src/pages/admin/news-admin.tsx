@@ -65,7 +65,7 @@ function ArticleDialog({ open, onClose, item, token }: { open: boolean; onClose:
         <DialogHeader><DialogTitle>{item ? "Edit Article" : "New Article"}</DialogTitle></DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-1"><Label>Headline *</Label><Input value={form.headline} onChange={(e) => set("headline", e.target.value)} /></div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1"><Label>Category *</Label>
               <Select value={form.category} onValueChange={(v) => set("category", v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -114,14 +114,14 @@ export default function AdminNewsPage() {
   return (
     <AppLayout>
       <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <Newspaper className="h-6 w-6 text-blue-400" />
+            <Newspaper className="h-6 w-6 text-blue-400 shrink-0" />
             <div><h1 className="text-xl font-bold text-foreground">Trading News</h1><p className="text-xs text-muted-foreground">Create and manage news articles</p></div>
           </div>
           <div className="flex gap-2">
             <Button variant="ghost" size="icon" onClick={() => void refetch()}><RefreshCw className="h-4 w-4" /></Button>
-            <Button onClick={() => { setEditing(null); setFormOpen(true); }} className="bg-blue-600 hover:bg-blue-700 gap-2"><Plus className="h-4 w-4" /> New Article</Button>
+            <Button onClick={() => { setEditing(null); setFormOpen(true); }} className="bg-blue-600 hover:bg-blue-700 gap-2 flex-1 sm:flex-none"><Plus className="h-4 w-4" /> New Article</Button>
           </div>
         </div>
 

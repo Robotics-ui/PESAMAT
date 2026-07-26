@@ -167,12 +167,12 @@ export default function StrategiesPage() {
   return (
     <AppLayout>
       <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-foreground">Strategies</h1>
             <p className="text-sm text-muted-foreground mt-1">CopyFactory strategies defining how trades are copied</p>
           </div>
-          <Button onClick={() => { setError(""); setOpen(true); }} className="bg-blue-600 hover:bg-blue-700" disabled={!hasEligible}>
+          <Button onClick={() => { setError(""); setOpen(true); }} className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto" disabled={!hasEligible}>
             <Plus className="h-4 w-4 mr-2" /> New Strategy
           </Button>
         </div>

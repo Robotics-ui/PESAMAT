@@ -1100,7 +1100,7 @@ function MasterApprovalsTab() {
           {pending.map((acc) => (
             <Card key={acc.id} className="border-purple-500/30 bg-purple-500/5">
               <CardContent className="py-4">
-                <div className="flex items-start justify-between gap-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                   <div className="flex items-start gap-3 min-w-0">
                     <div className="h-9 w-9 rounded-lg bg-purple-500/10 flex items-center justify-center shrink-0">
                       <Server className="h-4.5 w-4.5 text-purple-400" />
@@ -1123,7 +1123,7 @@ function MasterApprovalsTab() {
                   <div className="flex items-center gap-2 shrink-0">
                     <Button
                       size="sm"
-                      className="h-8 text-xs bg-green-600 hover:bg-green-700"
+                      className="h-8 text-xs bg-green-600 hover:bg-green-700 flex-1 sm:flex-none"
                       disabled={approving}
                       onClick={() => approve({ id: acc.id! })}
                     >
@@ -1132,7 +1132,7 @@ function MasterApprovalsTab() {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-8 text-xs border-red-500/30 text-red-400 hover:bg-red-500/10"
+                      className="h-8 text-xs border-red-500/30 text-red-400 hover:bg-red-500/10 flex-1 sm:flex-none"
                       onClick={() => { setRejectId(acc.id!); setRejectReason(""); setRejectError(""); }}
                     >
                       <ThumbsDown className="h-3.5 w-3.5 mr-1.5" /> Reject
