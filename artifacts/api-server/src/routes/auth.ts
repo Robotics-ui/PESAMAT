@@ -400,6 +400,12 @@ router.post("/auth/forgot-password", async (req, res): Promise<void> => {
   const { email } = parsed.data;
   const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email));
 
+  // Always log the request for security audit trail regardless of outcome
+  logger.info(
+    { email, userFound: !!user, ip: req.ip, userAgent: req.get("user-agent") },
+    "Password reset requested"
+  );
+
   if (!user) {
     res.json({ message: "If an account exists with that email, a reset link has been sent." });
     return;
@@ -409,10 +415,33 @@ router.post("/auth/forgot-password", async (req, res): Promise<void> => {
   const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
   await db.insert(passwordResetTokensTable).values({ userId: user.id, token, expiresAt });
 
+  logger.info(
+    { userId: user.id, email, tokenExpiresAt: expiresAt.toISOString() },
+    "Password reset token created"
+  );
+
   const host = req.get("x-forwarded-host") ?? req.get("host") ?? "localhost:5000";
   const proto = req.get("x-forwarded-proto") ?? req.protocol ?? "http";
   const baseUrl = process.env.APP_URL ?? `${proto}://${host}`;
   const resetLink = `${baseUrl}/reset-password?token=${token}`;
+
+  // Attempt to deliver the reset link via SMS when the user has a phone number
+  if (user.phone) {
+    try {
+      const message = `PESAMATRIX: Your password reset link is: ${resetLink} — expires in 1 hour. If you did not request this, ignore this message.`;
+      await db.insert(smsQueueTable).values({
+        userId: user.id,
+        phone: user.phone,
+        message,
+        eventType: "password_reset",
+        status: "pending",
+      });
+      logger.info({ userId: user.id, phone: user.phone }, "Password reset SMS queued");
+    } catch (smsErr) {
+      // Non-fatal — still return the link so the user can access it
+      logger.warn({ err: smsErr, userId: user.id }, "Failed to queue password reset SMS");
+    }
+  }
 
   res.json({
     message: "Reset link generated. Share this link with the user — it expires in 1 hour.",
