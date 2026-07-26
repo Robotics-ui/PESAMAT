@@ -23,6 +23,7 @@ const AdminPage = lazy(() => import("@/pages/admin/index"));
 const NewsPage = lazy(() => import("@/pages/news"));
 const ResourcesPage = lazy(() => import("@/pages/resources"));
 const AnnouncementsPage = lazy(() => import("@/pages/announcements"));
+const MediaCenterPage = lazy(() => import("@/pages/media-center"));
 const AdminMediaCenterPage = lazy(() => import("@/pages/admin/media-center"));
 const AdminNewsPage = lazy(() => import("@/pages/admin/news-admin"));
 const AdminResourcesPage = lazy(() => import("@/pages/admin/resources-admin"));
@@ -89,6 +90,7 @@ function Router() {
         <Route path="/news" component={NewsPage} />
         <Route path="/resources" component={ResourcesPage} />
         <Route path="/announcements" component={AnnouncementsPage} />
+        <Route path="/media-center" component={MediaCenterPage} />
         <Route path="/admin/media-center" component={AdminMediaCenterPage} />
         <Route path="/admin/news" component={AdminNewsPage} />
         <Route path="/admin/resources" component={AdminResourcesPage} />

@@ -49,6 +49,7 @@ const navItems = [
   { href: "/bindings", label: "Bindings", icon: Link2 },
   { href: "/trade-logs", label: "Trade Logs", icon: BarChart3 },
   { href: "/news", label: "News", icon: Newspaper },
+  { href: "/media-center", label: "Media Center", icon: Image },
   { href: "/resources", label: "Resources", icon: BookOpen },
   { href: "/announcements", label: "Announcements", icon: Bell },
   { href: "/about", label: "About Us", icon: Info },
