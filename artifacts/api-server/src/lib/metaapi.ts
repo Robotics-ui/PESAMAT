@@ -242,6 +242,10 @@ export type MetaApiVerificationResult = {
   reason: string;
   metaapiAccountId?: string;
   metaapiRegion?: string;
+  verifiedPlatform?: string;
+  verifiedBroker?: string;
+  verifiedServer?: string;
+  accountType?: "Live" | "Demo";
 };
 
 /**
@@ -322,7 +326,92 @@ export async function verifyMt5InvestorCredentials(input: {
       const connection = String(lastState.connectionStatus ?? "").toUpperCase();
       const synchronization = String(lastState.synchronizationStatus ?? "").toUpperCase();
       if (connection === "CONNECTED" || synchronization === "SYNCHRONIZED" || state === "CONNECTED") {
-        return { ok: true, reason: "MT5 account successfully verified.", metaapiAccountId, metaapiRegion };
+         if (!metaapiRegion) {
+           return {
+             ok: false,
+             reason: "MetaApi connected the account but did not return its region, so account details could not be validated safely.",
+             metaapiAccountId,
+             metaapiRegion,
+           };
+         }
+
+         const accountInfoResult = await callMetaApi<{
+           platform?: string;
+           broker?: string;
+           server?: string;
+           tradeMode?: string;
+         }>(
+           "GET",
+           `https://mt-client-api-v1.${metaapiRegion}.agiliumtrade.agiliumtrade.ai/users/current/accounts/${metaapiAccountId}/accountInformation`,
+           token,
+         );
+
+        if (!accountInfoResult.ok || !accountInfoResult.data || typeof accountInfoResult.data !== "object") {
+           return {
+             ok: false,
+             reason: "The MT5 account connected, but its account information could not be read for funding validation.",
+             metaapiAccountId,
+             metaapiRegion,
+           };
+         }
+
+        const accountInfo = accountInfoResult.data;
+        const verifiedPlatform = String(accountInfo.platform ?? "").trim();
+        const verifiedBroker = String(accountInfo.broker ?? "").trim();
+        const verifiedServer = String(accountInfo.server ?? "").trim();
+        const tradeMode = String(accountInfo.tradeMode ?? "").toUpperCase();
+
+        if (!verifiedPlatform || !verifiedPlatform.toLowerCase().includes("mt5")) {
+           return {
+             ok: false,
+             reason: "The supplied account is not an MT5 account. Only MT5 accounts can be funded.",
+             metaapiAccountId,
+             metaapiRegion,
+             verifiedPlatform,
+             verifiedBroker,
+             verifiedServer,
+           };
+         }
+
+        if (!verifiedServer) {
+          return {
+            ok: false,
+            reason: "MetaApi connected the account but did not return a server, so the account could not be validated safely.",
+            metaapiAccountId,
+            metaapiRegion,
+            verifiedPlatform,
+            verifiedBroker,
+          };
+        }
+
+        const accountType = tradeMode.includes("DEMO") || tradeMode.includes("PRACTICE") || tradeMode.includes("CONTEST")
+          ? "Demo"
+          : tradeMode.includes("REAL") || tradeMode.includes("LIVE")
+            ? "Live"
+            : undefined;
+
+        if (!accountType) {
+           return {
+             ok: false,
+             reason: "MetaApi could not determine whether the account is live or demo, so it cannot be accepted safely.",
+             metaapiAccountId,
+             metaapiRegion,
+             verifiedPlatform,
+             verifiedBroker,
+             verifiedServer,
+           };
+         }
+
+        return {
+          ok: true,
+          reason: "MT5 Account Successfully Verified.",
+          metaapiAccountId,
+          metaapiRegion,
+          verifiedPlatform,
+          verifiedBroker,
+          verifiedServer,
+          accountType,
+        };
       }
       if (state === "FAILED" || connection === "FAILED" || state === "ERROR") {
         return {

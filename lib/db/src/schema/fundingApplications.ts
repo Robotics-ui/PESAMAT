@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, numeric, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, numeric, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
 
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -44,6 +44,8 @@ export const fundingApplicationsTable = pgTable("funding_applications", {
   adminNotes: text("admin_notes"),
   reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
   reviewedBy: integer("reviewed_by"),
+  // Immutable funding history marker. Once set, this account must never re-enter the funding pipeline.
+  fundingGrantedAt: timestamp("funding_granted_at", { withTimezone: true }),
   // Funded account activation: tracks when a funded application was converted to a slave account
   activatedAt: timestamp("activated_at", { withTimezone: true }),
   linkedSlaveAccountId: integer("linked_slave_account_id"),
@@ -53,6 +55,7 @@ export const fundingApplicationsTable = pgTable("funding_applications", {
   index("funding_applications_user_id_idx").on(table.userId),
   index("funding_applications_status_idx").on(table.status),
   index("funding_applications_email_idx").on(table.email),
+  uniqueIndex("funding_applications_mt5_account_number_uidx").on(table.mt5AccountNumber),
 ]);
 
 export const insertFundingApplicationSchema = createInsertSchema(fundingApplicationsTable).omit({ id: true, createdAt: true, updatedAt: true });

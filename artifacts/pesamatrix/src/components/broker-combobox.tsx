@@ -8,9 +8,10 @@ interface BrokerComboboxProps {
   value: string;
   onChange: (broker: string) => void;
   onServerReset?: () => void;
+  allowCustom?: boolean;
 }
 
-export function BrokerCombobox({ value, onChange, onServerReset }: BrokerComboboxProps) {
+export function BrokerCombobox({ value, onChange, onServerReset, allowCustom = true }: BrokerComboboxProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
@@ -96,7 +97,7 @@ export function BrokerCombobox({ value, onChange, onServerReset }: BrokerCombobo
               ))
             )}
           </div>
-          {search && filtered.length === 0 && (
+          {allowCustom && search && filtered.length === 0 && (
             <button
               type="button"
               className="flex w-full items-center gap-2 px-3 py-2 text-sm text-left border-t border-border hover:bg-accent hover:text-accent-foreground"

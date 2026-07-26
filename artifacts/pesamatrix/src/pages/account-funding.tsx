@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 import { cn } from "@/lib/utils";
+import { BrokerCombobox, ServerCombobox } from "@/components/broker-combobox";
 
 interface FundingPublicSettings {
   applicationFee: number;
@@ -539,11 +540,13 @@ export default function AccountFundingPage() {
                       await refetchApps();
                       return;
                     }
+                     setVerificationForm((f) => ({ ...f, investorPassword: "" }));
                     await refetchApps();
                     toast({ title: "MT5 Account Successfully Verified.", description: "Your application has moved to the admin review queue." });
                   } catch {
                     setVerificationError("Verification could not be completed. Please check your details and try again.");
                   } finally {
+                    setVerificationForm((f) => ({ ...f, investorPassword: "" }));
                     setVerificationSubmitting(false);
                   }
                 }}
@@ -551,7 +554,11 @@ export default function AccountFundingPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Label>Broker Name</Label>
-                    <Input value={verificationForm.brokerName} onChange={(e) => setVerificationForm((f) => ({ ...f, brokerName: e.target.value }))} placeholder="e.g. Exness" required />
+                    <BrokerCombobox
+                      value={verificationForm.brokerName}
+                      onChange={(brokerName) => setVerificationForm((f) => ({ ...f, brokerName, mt5Server: "" }))}
+                      allowCustom={false}
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <Label>MT5 Account Number</Label>
@@ -559,7 +566,11 @@ export default function AccountFundingPage() {
                   </div>
                   <div className="space-y-1.5">
                     <Label>MT5 Server</Label>
-                    <Input value={verificationForm.mt5Server} onChange={(e) => setVerificationForm((f) => ({ ...f, mt5Server: e.target.value }))} placeholder="e.g. Exness-MT5Real" required />
+                    <ServerCombobox
+                      broker={verificationForm.brokerName}
+                      value={verificationForm.mt5Server}
+                      onChange={(mt5Server) => setVerificationForm((f) => ({ ...f, mt5Server }))}
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <Label>Investor Password <span className="text-muted-foreground text-xs">(read-only)</span></Label>

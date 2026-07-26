@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -32,6 +32,7 @@ export const slaveAccountsTable = pgTable("slave_accounts", {
   index("slave_accounts_status_idx").on(table.status),
   index("slave_accounts_metaapi_account_id_idx").on(table.metaapiAccountId),
   index("slave_accounts_subscriber_id_idx").on(table.subscriberId),
+  uniqueIndex("slave_accounts_mt5_login_uidx").on(table.mt5Login),
 ]);
 
 export const insertSlaveAccountSchema = createInsertSchema(slaveAccountsTable).omit({ id: true, createdAt: true });

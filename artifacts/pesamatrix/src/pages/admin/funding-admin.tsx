@@ -211,7 +211,7 @@ function ActivateDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <Label>Trading Password (Investor) <span className="text-red-400">*</span></Label>
+             <Label>Trading Password <span className="text-red-400">*</span></Label>
             <div className="relative">
               <input
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 pr-10 text-sm shadow-xs transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -230,6 +230,9 @@ function ActivateDialog({
                 {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
+             <p className="text-xs text-muted-foreground">
+               This is the trading password for the funded slave account. The applicant's investor password is never reused here.
+             </p>
           </div>
           <div className="space-y-1.5">
             <Label>MetaApi Region <span className="text-muted-foreground text-xs">(optional)</span></Label>
@@ -282,6 +285,10 @@ function ApplicationDialog({
   });
 
   const badgeMeta = STATUS_BADGE[app.status] ?? { label: app.status, className: "" };
+  const approvalRequirementsMet = app.paymentStatus === "completed" && app.mt5VerificationStatus === "verified";
+  const fundedTransitionBlocked = status === "funded" && (
+    app.status !== "approved" || !approvalRequirementsMet
+  );
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -371,11 +378,16 @@ function ApplicationDialog({
 
           {/* Admin controls */}
           <div className="border-t border-border pt-4 space-y-3">
-            {status === "approved" && (app.paymentStatus !== "completed" || app.mt5VerificationStatus !== "verified") && (
+             {status === "approved" && !approvalRequirementsMet && (
               <div className="rounded-lg bg-yellow-600/10 border border-yellow-600/30 p-3 text-sm text-yellow-300">
                 Approval is locked until payment is confirmed and MT5 verification succeeds.
               </div>
             )}
+             {fundedTransitionBlocked && (
+               <div className="rounded-lg bg-yellow-600/10 border border-yellow-600/30 p-3 text-sm text-yellow-300">
+                 Funding is locked until this application is approved after payment and MT5 verification.
+               </div>
+             )}
             <div className="space-y-1.5">
               <Label>Update Status</Label>
               <Select value={status} onValueChange={setStatus}>
@@ -384,7 +396,13 @@ function ApplicationDialog({
                 </SelectTrigger>
                 <SelectContent>
                   {ADMIN_STATUS_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                   <SelectItem
+                     key={o.value}
+                     value={o.value}
+                     disabled={o.value === "approved" && !approvalRequirementsMet || o.value === "funded" && (app.status !== "approved" || !approvalRequirementsMet)}
+                   >
+                     {o.label}
+                   </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -405,7 +423,7 @@ function ApplicationDialog({
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button
             className="bg-blue-600 hover:bg-blue-700 text-white"
-            disabled={updateMutation.isPending || (status === "approved" && (app.paymentStatus !== "completed" || app.mt5VerificationStatus !== "verified"))}
+             disabled={updateMutation.isPending || (status === "approved" && !approvalRequirementsMet) || fundedTransitionBlocked}
             onClick={() => updateMutation.mutate({ status: status !== app.status ? status : undefined, adminNotes })}
           >
             {updateMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
@@ -610,7 +628,7 @@ export default function FundingAdminPage() {
                 <table className="w-full text-sm">
                   <thead className="bg-muted/30 border-b border-border">
                     <tr>
-                      {["#", "Name", "Email", "Phone", "Status", "Payment", "Fee", "Date", ""].map((h) => (
+                       {["#", "Name", "Email", "Phone", "Broker", "MT5 Account", "Server", "Verification", "Status", "Payment", "Fee", "Date", ""].map((h) => (
                         <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
@@ -618,13 +636,13 @@ export default function FundingAdminPage() {
                   <tbody className="divide-y divide-border">
                     {appsLoading ? (
                       <tr>
-                        <td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">
+                         <td colSpan={13} className="px-4 py-10 text-center text-muted-foreground">
                           <Loader2 className="h-5 w-5 animate-spin mx-auto" />
                         </td>
                       </tr>
                     ) : appsData?.applications.length === 0 ? (
                       <tr>
-                        <td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">
+                         <td colSpan={13} className="px-4 py-10 text-center text-muted-foreground">
                           No applications found
                         </td>
                       </tr>
@@ -637,6 +655,14 @@ export default function FundingAdminPage() {
                             <td className="px-4 py-3 font-medium whitespace-nowrap">{app.fullName}</td>
                             <td className="px-4 py-3 text-muted-foreground">{app.email}</td>
                             <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{app.phone}</td>
+                             <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{app.brokerName || "—"}</td>
+                             <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">{app.mt5AccountNumber ?? "—"}</td>
+                             <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{app.mt5Server ?? "—"}</td>
+                             <td className="px-4 py-3 whitespace-nowrap">
+                               <span className={cn("text-xs font-medium", app.mt5VerificationStatus === "verified" ? "text-green-400" : app.mt5VerificationStatus === "failed" ? "text-red-400" : "text-yellow-400")}>
+                                 {app.mt5VerificationStatus}
+                               </span>
+                             </td>
                             <td className="px-4 py-3">
                               <Badge className={cn("text-xs border whitespace-nowrap", badge.className)}>{badge.label}</Badge>
                             </td>

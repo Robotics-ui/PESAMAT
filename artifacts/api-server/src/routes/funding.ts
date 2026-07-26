@@ -13,6 +13,7 @@ import { authenticate, requireAdmin } from "../middlewares/authenticate";
 import { logger } from "../lib/logger";
 import { encryptCredential } from "../lib/auth";
 import { verifyMt5InvestorCredentials } from "../lib/metaapi";
+import { brokerNamesMatch, isSupportedFundingBroker, normalizeTradingServer } from "../lib/fundingRequirements";
 
 const PLATFORM_CAPACITY = 2000;
 import {
@@ -417,6 +418,10 @@ router.post("/funding/applications/:id/verify-mt5", authenticate, async (req, re
     res.status(400).json({ error: "MT5 account number must contain digits only." });
     return;
   }
+  if (!isSupportedFundingBroker(brokerName)) {
+    res.status(400).json({ error: "This broker is not currently supported for the funding program." });
+    return;
+  }
 
   const [app] = await db
     .select()
@@ -450,7 +455,6 @@ router.post("/funding/applications/:id/verify-mt5", authenticate, async (req, re
     .where(
       and(
         eq(fundingApplicationsTable.mt5AccountNumber, normalizedLogin),
-        ne(fundingApplicationsTable.status, "rejected"),
       ),
     )
     .limit(1);
@@ -466,6 +470,23 @@ router.post("/funding/applications/:id/verify-mt5", authenticate, async (req, re
     mt5Server: mt5Server.trim(),
     investorPassword,
   });
+
+  if (
+    result.ok &&
+    result.verifiedServer &&
+    normalizeTradingServer(result.verifiedServer) !== normalizeTradingServer(mt5Server)
+  ) {
+    result.ok = false;
+    result.reason = "MetaApi connected a different MT5 server than the one submitted. Please verify the server and try again.";
+  }
+  if (result.ok && (!result.verifiedBroker || !brokerNamesMatch(brokerName, result.verifiedBroker))) {
+    result.ok = false;
+    result.reason = "MetaApi verified a different broker than the one submitted. Please check the broker and try again.";
+  }
+  if (result.ok && result.verifiedBroker && !isSupportedFundingBroker(result.verifiedBroker)) {
+    result.ok = false;
+    result.reason = "The verified broker is not currently supported for the funding program.";
+  }
 
   await db.insert(fundingVerificationAttemptsTable).values({
     applicationId: app.id,
@@ -491,6 +512,7 @@ router.post("/funding/applications/:id/verify-mt5", authenticate, async (req, re
       mt5VerificationAttempts: attemptNumber,
       metaapiVerificationAccountId: result.metaapiAccountId ?? null,
       metaapiVerificationRegion: result.metaapiRegion ?? null,
+      ...(result.ok && result.accountType ? { accountType: result.accountType } : {}),
       status: result.ok ? "under_review" : "verification_pending",
     })
     .where(eq(fundingApplicationsTable.id, app.id))
@@ -642,13 +664,32 @@ router.patch("/admin/funding/applications/:id", authenticate, requireAdmin, asyn
   if (adminNotes !== undefined) updates["adminNotes"] = adminNotes;
   if (status !== undefined) {
     if (!VALID_STATUSES.includes(status)) { res.status(400).json({ error: "Invalid status" }); return; }
+    if (app.fundingGrantedAt && status !== "funded") {
+      res.status(400).json({ error: "This account has already received funding and cannot re-enter the application pipeline." });
+      return;
+    }
+    if (app.status === "funded" && status !== "funded") {
+      res.status(400).json({ error: "Funded applications cannot be moved back to an earlier status." });
+      return;
+    }
     if (status === "approved" && (app.paymentStatus !== "completed" || app.mt5VerificationStatus !== "verified")) {
       res.status(400).json({ error: "Application approval requires confirmed payment and successful MT5 verification." });
+      return;
+    }
+    if (status === "funded" && (
+      app.status !== "approved" ||
+      app.paymentStatus !== "completed" ||
+      app.mt5VerificationStatus !== "verified"
+    )) {
+      res.status(400).json({ error: "An application must be approved after confirmed payment and successful MT5 verification before it can be marked funded." });
       return;
     }
     updates["status"] = status;
     updates["reviewedAt"] = new Date();
     updates["reviewedBy"] = req.userId;
+    if (status === "funded" && !app.fundingGrantedAt) {
+      updates["fundingGrantedAt"] = new Date();
+    }
   }
 
   const [updated] = await db
