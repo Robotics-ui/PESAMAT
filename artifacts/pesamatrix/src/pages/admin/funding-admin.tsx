@@ -98,6 +98,7 @@ const ADMIN_STATUS_OPTIONS = [
 
 const STATUS_BADGE: Record<string, { label: string; className: string }> = {
   pending_payment: { label: "Pending Payment", className: "bg-yellow-600/20 text-yellow-400 border-yellow-600/30" },
+  verification_pending: { label: "MT5 Verification Required", className: "bg-yellow-600/20 text-yellow-400 border-yellow-600/30" },
   submitted: { label: "Submitted", className: "bg-blue-600/20 text-blue-400 border-blue-600/30" },
   under_review: { label: "Under Review", className: "bg-blue-600/20 text-blue-400 border-blue-600/30" },
   approved: { label: "Approved", className: "bg-green-600/20 text-green-400 border-green-600/30" },
