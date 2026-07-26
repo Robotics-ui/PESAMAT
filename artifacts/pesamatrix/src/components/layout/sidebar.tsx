@@ -1,6 +1,8 @@
+import { useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useThemeContext } from "@/contexts/theme-context";
+import { useSidebar } from "@/contexts/sidebar-context";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -28,6 +30,7 @@ import {
   Monitor,
   HelpCircle,
   Wallet,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -69,7 +72,7 @@ const adminNavItems = [
   { href: "/admin/funding", label: "Account Funding", icon: Wallet },
 ];
 
-export function Sidebar() {
+function NavContent({ onNavigate }: { onNavigate?: () => void }) {
   const [location] = useLocation();
   const { user, logout } = useAuth();
   const { theme, setTheme } = useThemeContext();
@@ -77,24 +80,16 @@ export function Sidebar() {
   const ThemeIcon = theme === "light" ? Sun : theme === "system" ? Monitor : Moon;
 
   return (
-    <aside className="flex flex-col w-64 h-screen bg-card border-r border-border shrink-0 transition-colors duration-200">
-      {/* Logo */}
-      <div className="flex items-center gap-2 px-6 h-16 border-b border-border shrink-0">
-        <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center">
-          <TrendingUp className="h-5 w-5 text-white" />
-        </div>
-        <span className="text-lg font-bold text-foreground tracking-tight">PESAMATRIX</span>
-      </div>
-
+    <>
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {navItems.map(({ href, label, icon: Icon }) => {
           const active = location === href || location.startsWith(href + "/");
           return (
-            <Link key={href} href={href}>
+            <Link key={href} href={href} onClick={onNavigate}>
               <div
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors",
+                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer transition-colors",
                   active
                     ? "bg-blue-600/20 text-blue-400 border border-blue-600/30"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -114,10 +109,10 @@ export function Sidebar() {
             {adminNavItems.map(({ href, label, icon: Icon }) => {
               const active = href === "/admin" ? location === "/admin" : location.startsWith(href);
               return (
-                <Link key={href} href={href}>
+                <Link key={href} href={href} onClick={onNavigate}>
                   <div
                     className={cn(
-                      "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors border",
+                      "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer transition-colors border",
                       active
                         ? "bg-green-600/20 text-green-400 border-green-600/30"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground border-transparent"
@@ -135,7 +130,7 @@ export function Sidebar() {
       </nav>
 
       {/* User footer */}
-      <div className="px-3 py-4 border-t border-border">
+      <div className="px-3 py-4 border-t border-border shrink-0">
         <div className="flex items-center gap-3 px-3 py-2">
           <div className="h-8 w-8 rounded-full bg-blue-600/20 border border-blue-600/40 flex items-center justify-center text-blue-400 text-sm font-semibold shrink-0">
             {user?.name?.[0]?.toUpperCase() ?? "U"}
@@ -175,6 +170,78 @@ export function Sidebar() {
           </Button>
         </div>
       </div>
-    </aside>
+    </>
+  );
+}
+
+export function Sidebar() {
+  const { isOpen, close } = useSidebar();
+  const [location] = useLocation();
+
+  // Close sidebar on navigation on mobile
+  useEffect(() => {
+    close();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location]);
+
+  // Prevent body scroll when drawer is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [isOpen]);
+
+  return (
+    <>
+      {/* Desktop sidebar — always visible on lg+ */}
+      <aside className="hidden lg:flex flex-col w-64 h-screen bg-card border-r border-border shrink-0 transition-colors duration-200">
+        {/* Logo */}
+        <div className="flex items-center gap-2 px-6 h-16 border-b border-border shrink-0">
+          <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center">
+            <TrendingUp className="h-5 w-5 text-white" />
+          </div>
+          <span className="text-lg font-bold text-foreground tracking-tight">PESAMATRIX</span>
+        </div>
+        <NavContent />
+      </aside>
+
+      {/* Mobile backdrop */}
+      {isOpen && (
+        <div
+          className="lg:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+          onClick={close}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Mobile drawer */}
+      <aside
+        className={cn(
+          "lg:hidden fixed top-0 left-0 z-50 flex flex-col w-72 max-w-[85vw] h-full bg-card border-r border-border transition-transform duration-300 ease-in-out",
+          isOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+      >
+        {/* Drawer header */}
+        <div className="flex items-center justify-between px-4 h-14 border-b border-border shrink-0">
+          <div className="flex items-center gap-2">
+            <div className="h-7 w-7 rounded-lg bg-blue-600 flex items-center justify-center">
+              <TrendingUp className="h-4 w-4 text-white" />
+            </div>
+            <span className="text-base font-bold text-foreground tracking-tight">PESAMATRIX</span>
+          </div>
+          <button
+            onClick={close}
+            className="h-8 w-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            aria-label="Close menu"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <NavContent onNavigate={close} />
+      </aside>
+    </>
   );
 }

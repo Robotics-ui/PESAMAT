@@ -37,7 +37,7 @@ export default function AboutPage() {
             <TrendingUp className="h-6 w-6 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">About Us</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">About Us</h1>
             <p className="text-sm text-muted-foreground">Learn more about PesaMatrix</p>
           </div>
         </div>

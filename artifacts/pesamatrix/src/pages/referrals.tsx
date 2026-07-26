@@ -116,9 +116,9 @@ export default function ReferralsPage() {
 
   return (
     <AppLayout>
-      <div className="p-6 space-y-6 max-w-4xl">
+      <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 max-w-4xl">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Referral Dashboard</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground">Referral Dashboard</h1>
           <p className="text-muted-foreground text-sm mt-1">
             Share your code. Earn free subscription days when your referrals become active.
           </p>
@@ -161,7 +161,7 @@ export default function ReferralsPage() {
               <div className="flex items-center gap-3">
                 <Users className="h-8 w-8 text-blue-400 shrink-0" />
                 <div>
-                  <p className="text-2xl font-bold text-foreground">{data.totalReferrals}</p>
+                  <p className="text-xl sm:text-2xl font-bold text-foreground">{data.totalReferrals}</p>
                   <p className="text-xs text-muted-foreground">Total Referrals</p>
                 </div>
               </div>
@@ -172,7 +172,7 @@ export default function ReferralsPage() {
               <div className="flex items-center gap-3">
                 <Clock className="h-8 w-8 text-yellow-400 shrink-0" />
                 <div>
-                  <p className="text-2xl font-bold text-foreground">{data.pendingRewards}</p>
+                  <p className="text-xl sm:text-2xl font-bold text-foreground">{data.pendingRewards}</p>
                   <p className="text-xs text-muted-foreground">Pending Rewards</p>
                 </div>
               </div>
@@ -183,7 +183,7 @@ export default function ReferralsPage() {
               <div className="flex items-center gap-3">
                 <Trophy className="h-8 w-8 text-green-400 shrink-0" />
                 <div>
-                  <p className="text-2xl font-bold text-foreground">{data.totalRewardDays}</p>
+                  <p className="text-xl sm:text-2xl font-bold text-foreground">{data.totalRewardDays}</p>
                   <p className="text-xs text-muted-foreground">Total Days Earned</p>
                 </div>
               </div>

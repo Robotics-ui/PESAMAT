@@ -113,7 +113,7 @@ export default function AdminNewsPage() {
 
   return (
     <AppLayout>
-      <div className="p-6 space-y-6">
+      <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Newspaper className="h-6 w-6 text-blue-400" />

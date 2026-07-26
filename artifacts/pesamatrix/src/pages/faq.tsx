@@ -142,14 +142,14 @@ export default function FaqPage() {
 
   return (
     <AppLayout>
-      <div className="p-6 space-y-6 max-w-3xl mx-auto">
+      <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 max-w-3xl mx-auto">
         {/* Header */}
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-lg bg-blue-600/10 flex items-center justify-center shrink-0">
             <HelpCircle className="h-5 w-5 text-blue-400" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Frequently Asked Questions</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">Frequently Asked Questions</h1>
             <p className="text-sm text-muted-foreground mt-0.5">Find answers to common questions about PesaMatrix</p>
           </div>
         </div>

@@ -179,9 +179,9 @@ export default function PaymentPage() {
 
   return (
     <AppLayout>
-      <div className="p-6 space-y-6 max-w-2xl">
+      <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 max-w-2xl">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Subscribe</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground">Subscribe</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Pay via M-Pesa STK Push to activate copy trading
           </p>

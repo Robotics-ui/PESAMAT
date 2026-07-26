@@ -389,11 +389,11 @@ export default function DiagnosticsPage() {
 
   return (
     <AppLayout>
-      <div className="p-6 space-y-6">
+      <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Connection Diagnostics</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">Connection Diagnostics</h1>
             <p className="text-sm text-muted-foreground mt-1">
               Real MetaApi UUIDs vs local DB IDs · deployment state · connection · sync · errors — auto-refreshes every 15s
             </p>

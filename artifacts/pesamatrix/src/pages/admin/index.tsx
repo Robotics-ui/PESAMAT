@@ -2787,13 +2787,13 @@ export default function AdminPage() {
 
   return (
     <AppLayout>
-      <div className="p-6 space-y-6">
+      <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-xl bg-green-600/20 flex items-center justify-center">
             <Shield className="h-5 w-5 text-green-400" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Admin Panel</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">Admin Panel</h1>
             <p className="text-sm text-muted-foreground">Manage platform settings and users</p>
           </div>
         </div>
@@ -2931,20 +2931,22 @@ export default function AdminPage() {
         </div>
 
         <Tabs defaultValue={new URLSearchParams(typeof window !== "undefined" ? window.location.search : "").get("tab") ?? "approvals"} className="space-y-4">
-          <TabsList className="bg-muted/50">
-            <TabsTrigger value="approvals" className="relative">
-              Approvals
-              {/* Pending count badge */}
-            </TabsTrigger>
-            <TabsTrigger value="users">Users</TabsTrigger>
-            <TabsTrigger value="monitor">Enforcement Monitor</TabsTrigger>
-            <TabsTrigger value="settings">Settings</TabsTrigger>
-            <TabsTrigger value="strategies">Strategies</TabsTrigger>
-            <TabsTrigger value="referrals">Referrals</TabsTrigger>
-            <TabsTrigger value="banner">Market Banner</TabsTrigger>
-            <TabsTrigger value="customer-care">Customer Care</TabsTrigger>
-            <TabsTrigger value="cf-subscribers">CF Subscribers</TabsTrigger>
-          </TabsList>
+          <div className="overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
+            <TabsList className="bg-muted/50 w-max min-w-full sm:w-auto sm:flex-wrap sm:h-auto">
+              <TabsTrigger value="approvals" className="relative whitespace-nowrap">
+                Approvals
+                {/* Pending count badge */}
+              </TabsTrigger>
+              <TabsTrigger value="users" className="whitespace-nowrap">Users</TabsTrigger>
+              <TabsTrigger value="monitor" className="whitespace-nowrap">Monitor</TabsTrigger>
+              <TabsTrigger value="settings" className="whitespace-nowrap">Settings</TabsTrigger>
+              <TabsTrigger value="strategies" className="whitespace-nowrap">Strategies</TabsTrigger>
+              <TabsTrigger value="referrals" className="whitespace-nowrap">Referrals</TabsTrigger>
+              <TabsTrigger value="banner" className="whitespace-nowrap">Banner</TabsTrigger>
+              <TabsTrigger value="customer-care" className="whitespace-nowrap">Care</TabsTrigger>
+              <TabsTrigger value="cf-subscribers" className="whitespace-nowrap">CF Subs</TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* Master Approvals tab */}
           <TabsContent value="approvals">

@@ -50,7 +50,7 @@ export default function ContactsPage() {
             <Phone className="h-6 w-6 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Contacts</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">Contacts</h1>
             <p className="text-sm text-muted-foreground">Get in touch with us</p>
           </div>
         </div>

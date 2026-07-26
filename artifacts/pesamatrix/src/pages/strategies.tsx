@@ -73,9 +73,9 @@ export default function StrategiesPage() {
   if (!isAdmin && !masterAccounts?.length && masterAccounts !== undefined) {
     return (
       <AppLayout>
-        <div className="p-6 space-y-6">
+        <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Strategies</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">Strategies</h1>
             <p className="text-sm text-muted-foreground mt-1">CopyFactory strategies defining how trades are copied</p>
           </div>
 
@@ -166,10 +166,10 @@ export default function StrategiesPage() {
   // ── Admin / master-owner view ─────────────────────────────────────────────
   return (
     <AppLayout>
-      <div className="p-6 space-y-6">
+      <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Strategies</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">Strategies</h1>
             <p className="text-sm text-muted-foreground mt-1">CopyFactory strategies defining how trades are copied</p>
           </div>
           <Button onClick={() => { setError(""); setOpen(true); }} className="bg-blue-600 hover:bg-blue-700" disabled={!hasEligible}>
