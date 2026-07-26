@@ -2719,6 +2719,7 @@ export default function AdminPage() {
   const [minDays, setMinDays] = useState("");
   const [maxDays, setMaxDays] = useState("");
   const [expiryWarningDays, setExpiryWarningDays] = useState("3");
+  const [freeTrialDays, setFreeTrialDays] = useState("2");
   const [metaApiToken, setMetaApiToken] = useState("");
   const [showToken, setShowToken] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -2747,6 +2748,7 @@ export default function AdminPage() {
       setMinDays(String(settings.minDays ?? 1));
       setMaxDays(String(settings.maxDays ?? 365));
       setExpiryWarningDays(String(settings.expiryWarningDays ?? 3));
+      setFreeTrialDays(String(settings.freeTrialDays ?? 2));
       setMetaApiToken(settings.metaApiToken ?? "");
     }
   }, [settings]);
@@ -2770,6 +2772,7 @@ export default function AdminPage() {
         minDays: parseInt(minDays),
         maxDays: parseInt(maxDays),
         expiryWarningDays: parseInt(expiryWarningDays),
+        freeTrialDays: parseInt(freeTrialDays),
         metaApiToken: metaApiToken.trim() || null,
       },
     });
@@ -3141,6 +3144,20 @@ export default function AdminPage() {
                   <p className="text-xs text-muted-foreground">
                     Send a <code className="bg-muted px-1 rounded">subscription_expiring</code> SMS this many days before a subscription ends.
                     Set to <strong>0</strong> to disable.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Free Trial Duration (days)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="365"
+                    value={freeTrialDays}
+                    onChange={(e) => setFreeTrialDays(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Number of days new users receive as a free trial after phone verification.
+                    Set to <strong>0</strong> to disable free trials.
                   </p>
                 </div>
                 <div className="space-y-2">

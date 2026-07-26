@@ -1637,7 +1637,7 @@ components:
 
     AdminSettings:
       type: object
-      required: [id, dailyFee, minDays, maxDays, expiryWarningDays]
+      required: [id, dailyFee, minDays, maxDays, expiryWarningDays, freeTrialDays]
       properties:
         id:
           type: integer
@@ -1658,6 +1658,10 @@ components:
           type: integer
           nullable: true
           description: ID of the locally-stored strategy to auto-bind new subscribers to
+        freeTrialDays:
+          type: integer
+          minimum: 0
+          description: Number of days granted for the free trial after phone verification
         updatedAt:
           type: string
           format: date-time
@@ -1684,6 +1688,10 @@ components:
         activeStrategyId:
           type: integer
           nullable: true
+        freeTrialDays:
+          type: integer
+          minimum: 0
+          description: Number of days granted for the free trial after phone verification
 
     SchedulerRunLog:
       type: object

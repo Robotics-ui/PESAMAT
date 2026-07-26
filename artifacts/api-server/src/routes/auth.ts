@@ -9,6 +9,7 @@ import {
   promoCodesTable,
   referralsTable,
   smsQueueTable,
+  adminSettingsTable,
 } from "@workspace/db";
 import { RegisterBody, LoginBody, ForgotPasswordBody } from "@workspace/api-zod";
 import { hashPassword, verifyPassword, signToken } from "../lib/auth";
@@ -269,7 +270,10 @@ router.post("/auth/verify-otp", authenticate, async (req, res): Promise<void> =>
 
   if (eligible) {
     const now = new Date();
-    const trialEnd = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
+    // Read trial duration from admin settings (defaults to 2 days if not configured)
+    const [adminSettings] = await db.select({ freeTrialDays: adminSettingsTable.freeTrialDays }).from(adminSettingsTable).limit(1);
+    const trialDays = adminSettings?.freeTrialDays ?? 2;
+    const trialEnd = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000);
     await db
       .update(subscriptionsTable)
       .set({ status: "free_trial", startDate: now, endDate: trialEnd, freeTrialUsed: 1 })
@@ -280,10 +284,10 @@ router.post("/auth/verify-otp", authenticate, async (req, res): Promise<void> =>
       type: "free_trial_activated",
       title: "Welcome — Free Trial Active",
       message:
-        "Your 2-day free trial is now active. Add a slave account and bind it to a strategy to start receiving copy trades.",
+        `Your ${trialDays}-day free trial is now active. Add a slave account and bind it to a strategy to start receiving copy trades.`,
     });
 
-    logger.info({ userId: user.id, trialEnd }, "OTP verified: 2-day free trial granted");
+    logger.info({ userId: user.id, trialEnd, trialDays }, "OTP verified: free trial granted");
     res.json({ message: "Phone verified. Free trial activated.", trialActivated: true });
   } else {
     logger.info({ userId: user.id, phoneHadTrial, fingerprintHadTrial }, "OTP verified: trial already used");

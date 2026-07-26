@@ -249,6 +249,7 @@ router.patch("/admin/settings", authenticate, requireAdmin, async (req, res): Pr
   if (parsed.data.maxDays != null) updates.maxDays = parsed.data.maxDays;
   if ("metaApiToken" in parsed.data) updates.metaApiToken = parsed.data.metaApiToken ?? null;
   if (parsed.data.expiryWarningDays != null) updates.expiryWarningDays = parsed.data.expiryWarningDays;
+  if (parsed.data.freeTrialDays != null) updates.freeTrialDays = parsed.data.freeTrialDays;
   const rawBody = req.body as { defaultTheme?: string; activeStrategyId?: number | null };
   if (rawBody.defaultTheme && ["dark", "light", "system"].includes(rawBody.defaultTheme)) {
     updates.defaultTheme = rawBody.defaultTheme;

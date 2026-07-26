@@ -876,6 +876,7 @@ export const GetAdminSettingsResponse = zod.object({
   "metaApiToken": zod.string().nullish(),
   "expiryWarningDays": zod.number().min(getAdminSettingsResponseExpiryWarningDaysMin).describe('Days before subscription expiry to send an SMS warning (0 = disabled)'),
   "activeStrategyId": zod.number().nullish().describe('ID of the locally-stored strategy to auto-bind new subscribers to'),
+  "freeTrialDays": zod.number().min(0).describe('Number of days granted for the free trial after phone verification'),
   "updatedAt": zod.coerce.date().optional()
 })
 
@@ -898,7 +899,8 @@ export const UpdateAdminSettingsBody = zod.object({
   "maxDays": zod.number().max(updateAdminSettingsBodyMaxDaysMax).optional(),
   "metaApiToken": zod.string().nullish(),
   "expiryWarningDays": zod.number().min(updateAdminSettingsBodyExpiryWarningDaysMin).max(updateAdminSettingsBodyExpiryWarningDaysMax).optional(),
-  "activeStrategyId": zod.number().nullish()
+  "activeStrategyId": zod.number().nullish(),
+  "freeTrialDays": zod.number().min(0).optional()
 })
 
 export const updateAdminSettingsResponseExpiryWarningDaysMin = 0;
@@ -913,6 +915,7 @@ export const UpdateAdminSettingsResponse = zod.object({
   "metaApiToken": zod.string().nullish(),
   "expiryWarningDays": zod.number().min(updateAdminSettingsResponseExpiryWarningDaysMin).describe('Days before subscription expiry to send an SMS warning (0 = disabled)'),
   "activeStrategyId": zod.number().nullish().describe('ID of the locally-stored strategy to auto-bind new subscribers to'),
+  "freeTrialDays": zod.number().min(0).describe('Number of days granted for the free trial after phone verification'),
   "updatedAt": zod.coerce.date().optional()
 })
 

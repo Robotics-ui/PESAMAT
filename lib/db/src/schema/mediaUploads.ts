@@ -8,6 +8,7 @@ export const mediaUploadsTable = pgTable("media_uploads", {
   mediaType: text("media_type").notNull(),
   url: text("url").notNull(),
   thumbnailUrl: text("thumbnail_url"),
+  cloudinaryPublicId: text("cloudinary_public_id"),
   category: text("category"),
   status: text("status").notNull().default("draft"),
   publishedAt: timestamp("published_at", { withTimezone: true }),

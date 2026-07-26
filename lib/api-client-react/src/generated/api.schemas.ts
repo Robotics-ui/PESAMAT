@@ -435,6 +435,11 @@ export interface AdminSettings {
   expiryWarningDays: number;
   /** ID of the locally-stored strategy to auto-bind new subscribers to */
   activeStrategyId?: number | null;
+  /**
+     * Number of days granted for the free trial after phone verification
+     * @minimum 0
+     */
+  freeTrialDays: number;
   updatedAt?: string;
 }
 
@@ -452,6 +457,11 @@ export interface AdminSettingsUpdate {
      */
   expiryWarningDays?: number;
   activeStrategyId?: number | null;
+  /**
+     * Number of days granted for the free trial after phone verification
+     * @minimum 0
+     */
+  freeTrialDays?: number;
 }
 
 export interface SchedulerRunLog {
