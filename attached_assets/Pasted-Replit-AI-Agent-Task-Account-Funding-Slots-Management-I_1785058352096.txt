@@ -1,0 +1,91 @@
+Replit AI Agent Task – Account Funding Slots Management
+
+Implement the following changes to the Account Funding module in the PesaMatrix application.
+
+Admin Settings
+
+Create an Account Funding Settings page where only administrators can:
+
+- Set the Application Fee (editable at any time).
+- Set the Total Funding Slots Available.
+- Enable or disable funding applications.
+- Save settings to the database.
+
+These values must be stored centrally and used throughout the application.
+
+Automatic Slot Counter
+
+The system must automatically track funding slots.
+
+Example:
+
+- Total Slots = 100
+- Approved/Funded Accounts = 25
+- Remaining Slots = 75
+
+Whenever an application is approved (or marked as Funded, depending on the workflow), the system must automatically reduce the remaining slots by one.
+
+Display everywhere:
+
+- Total Slots: 100
+- Approved/Funded: 25
+- Remaining Slots: 75
+
+The remaining slots should update instantly without manual calculation.
+
+Terms & Conditions Page
+
+The Terms & Conditions page must not contain hard-coded values.
+
+Instead, it should automatically display:
+
+- The current Application Fee set by the Admin.
+- The current Total Funding Slots set by the Admin.
+- The current Remaining Funding Slots.
+
+Whenever the Admin changes the fee or total slots, the Terms & Conditions page must immediately reflect the updated values.
+
+Example:
+
+- Application Fee: KES 2,500
+- Total Funding Slots: 100
+- Remaining Funding Slots: 75
+
+These values must always come directly from the database.
+
+User Interface
+
+On the Account Funding page, display a live funding summary:
+
+- Application Fee: KES X
+- Total Funding Slots: X
+- Remaining Funding Slots: X
+
+Users should see these values before submitting an application.
+
+Backend Logic
+
+- Store funding settings in a dedicated "funding_settings" table.
+- Track approved/funded applications in the "funding_applications" table.
+- Calculate Remaining Slots automatically:
+  - "Remaining Slots = Total Slots − Approved/Funded Applications"
+- Never allow Remaining Slots to become negative.
+- Automatically close new applications when Remaining Slots reaches zero.
+- Display a message such as:
+  "Funding applications are currently closed because all available funding slots have been filled."
+
+API
+
+Create endpoints to:
+
+- Get Funding Settings.
+- Update Funding Settings (Admin only).
+- Get Funding Statistics.
+- Return live values to the Account Funding page and the Terms & Conditions page.
+
+Security
+
+- Only administrators can update the application fee and total funding slots.
+- All changes should be recorded in the audit log with the admin ID and timestamp.
+
+Ensure the implementation follows the existing PesaMatrix architecture (React, Express, Drizzle ORM, PostgreSQL) and that all displayed values are loaded dynamically from the database rather than hard-coded.

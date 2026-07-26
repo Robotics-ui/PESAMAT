@@ -35,6 +35,7 @@ interface FundingStats {
   approved: number;
   rejected: number;
   funded: number;
+  approvedOrFunded: number;
   availableSlots: number;
   maxFundingAccounts: number;
   totalFeeRevenue: number;
@@ -381,14 +382,42 @@ export default function FundingAdminPage() {
 
         {/* Stats grid */}
         {stats && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            <StatCard icon={FileText} label="Total Applications" value={stats.totalApplications} />
-            <StatCard icon={Users} label="Available Slots" value={stats.availableSlots} color="text-blue-400" />
-            <StatCard icon={CheckCircle2} label="Approved" value={stats.approved} color="text-green-400" />
-            <StatCard icon={XCircle} label="Rejected" value={stats.rejected} color="text-red-400" />
-            <StatCard icon={Award} label="Funded" value={stats.funded} color="text-green-400" />
-            <StatCard icon={TrendingUp} label="Fee Revenue (KES)" value={stats.totalFeeRevenue.toLocaleString()} color="text-blue-400" />
-          </div>
+          <>
+            {/* Slot summary */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <Card className="bg-card border-border">
+                <CardContent className="pt-5 pb-4">
+                  <p className="text-xs text-muted-foreground">Total Slots</p>
+                  <p className="text-3xl font-bold mt-1 text-foreground">{stats.maxFundingAccounts}</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-card border-border">
+                <CardContent className="pt-5 pb-4">
+                  <p className="text-xs text-muted-foreground">Approved / Funded</p>
+                  <p className="text-3xl font-bold mt-1 text-green-400">{stats.approvedOrFunded}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{stats.approved} approved, {stats.funded} funded</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-card border-border">
+                <CardContent className="pt-5 pb-4">
+                  <p className="text-xs text-muted-foreground">Remaining Slots</p>
+                  <p className={`text-3xl font-bold mt-1 ${stats.availableSlots === 0 ? "text-red-400" : "text-blue-400"}`}>{stats.availableSlots}</p>
+                  {stats.availableSlots === 0 && (
+                    <p className="text-xs text-red-400 mt-0.5">All slots filled — applications closed</p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Application breakdown */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              <StatCard icon={FileText} label="Total Applications" value={stats.totalApplications} />
+              <StatCard icon={Clock} label="Under Review" value={stats.underReview} color="text-blue-400" />
+              <StatCard icon={CheckCircle2} label="Approved" value={stats.approved} color="text-green-400" />
+              <StatCard icon={XCircle} label="Rejected" value={stats.rejected} color="text-red-400" />
+              <StatCard icon={TrendingUp} label="Fee Revenue (KES)" value={stats.totalFeeRevenue.toLocaleString()} color="text-blue-400" />
+            </div>
+          </>
         )}
 
         <Tabs defaultValue="applications">

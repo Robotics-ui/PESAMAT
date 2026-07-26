@@ -89,21 +89,27 @@ async function initiateStk(
 
 router.get("/funding/settings", async (_req, res): Promise<void> => {
   const s = await getFundingSettings();
-  if (!s) { res.json({ applicationFee: 5000, maxFundingAccounts: 10, fundingEnabled: false, availableSlots: 0 }); return; }
+  if (!s) { res.json({ applicationFee: 5000, maxFundingAccounts: 10, fundingEnabled: false, availableSlots: 0, approvedOrFundedCount: 0 }); return; }
 
   const [{ total }] = await db
     .select({ total: count() })
     .from(fundingApplicationsTable)
     .where(ne(fundingApplicationsTable.status, "rejected"));
 
-  const funded = await db
-    .select({ total: count() })
+  // Slots are occupied by approved + funded applications
+  const [{ approvedOrFunded }] = await db
+    .select({ approvedOrFunded: count() })
     .from(fundingApplicationsTable)
-    .where(eq(fundingApplicationsTable.status, "funded"));
+    .where(
+      or(
+        eq(fundingApplicationsTable.status, "approved"),
+        eq(fundingApplicationsTable.status, "funded")
+      )
+    );
 
-  const fundedCount = funded[0]?.total ?? 0;
+  const approvedOrFundedCount = Number(approvedOrFunded ?? 0);
   const activeApplications = Number(total ?? 0);
-  const availableSlots = Math.max(0, s.maxFundingAccounts - fundedCount);
+  const availableSlots = Math.max(0, s.maxFundingAccounts - approvedOrFundedCount);
 
   res.json({
     applicationFee: parseFloat(String(s.applicationFee)),
@@ -111,7 +117,7 @@ router.get("/funding/settings", async (_req, res): Promise<void> => {
     fundingEnabled: s.fundingEnabled,
     availableSlots,
     activeApplications,
-    fundedCount,
+    approvedOrFundedCount,
   });
 });
 
@@ -141,13 +147,18 @@ router.post("/funding/apply", authenticate, async (req, res): Promise<void> => {
   if (!s) { res.status(503).json({ error: "Funding settings not configured" }); return; }
   if (!s.fundingEnabled) { res.status(400).json({ error: "Funding applications are currently disabled" }); return; }
 
-  // Check funded slots
-  const [{ fundedCount }] = await db
-    .select({ fundedCount: count() })
+  // Check available slots — approved + funded both occupy a slot
+  const [{ occupiedCount }] = await db
+    .select({ occupiedCount: count() })
     .from(fundingApplicationsTable)
-    .where(eq(fundingApplicationsTable.status, "funded"));
-  if (Number(fundedCount) >= s.maxFundingAccounts) {
-    res.status(400).json({ error: "Maximum funding slots reached. No more applications are being accepted." });
+    .where(
+      or(
+        eq(fundingApplicationsTable.status, "approved"),
+        eq(fundingApplicationsTable.status, "funded")
+      )
+    );
+  if (Number(occupiedCount) >= s.maxFundingAccounts) {
+    res.status(400).json({ error: "Funding applications are currently closed because all available funding slots have been filled." });
     return;
   }
 
@@ -354,7 +365,10 @@ router.patch("/admin/funding/settings", authenticate, requireAdmin, async (req, 
   if (!s) { res.status(404).json({ error: "Settings not found" }); return; }
 
   const [updated] = await db.update(fundingSettingsTable).set(updates).where(eq(fundingSettingsTable.id, s.id)).returning();
-  logger.info({ updates, adminId: (req as unknown as { userId: number }).userId }, "Funding settings updated");
+  logger.info(
+    { updates, adminId: req.userId, updatedAt: new Date().toISOString() },
+    "Funding settings updated by admin"
+  );
   res.json({ ...updated, applicationFee: parseFloat(String(updated.applicationFee)) });
 });
 
@@ -372,15 +386,20 @@ router.get("/admin/funding/stats", authenticate, requireAdmin, async (_req, res)
     .where(eq(fundingApplicationsTable.paymentStatus, "completed"));
 
   const s = await getFundingSettings();
-  const availableSlots = Math.max(0, (s?.maxFundingAccounts ?? 0) - Number(funded));
+  const approvedCount = Number(approved);
+  const fundedCount = Number(funded);
+  // Slots occupied by approved + funded applications
+  const approvedOrFunded = approvedCount + fundedCount;
+  const availableSlots = Math.max(0, (s?.maxFundingAccounts ?? 0) - approvedOrFunded);
 
   res.json({
     totalApplications: Number(total),
     submitted: Number(submitted),
     underReview: Number(underReview),
-    approved: Number(approved),
+    approved: approvedCount,
     rejected: Number(rejected),
-    funded: Number(funded),
+    funded: fundedCount,
+    approvedOrFunded,
     availableSlots,
     maxFundingAccounts: s?.maxFundingAccounts ?? 0,
     totalFeeRevenue: parseFloat(String(revenueRow?.total ?? "0")),

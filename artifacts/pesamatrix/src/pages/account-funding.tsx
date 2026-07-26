@@ -17,8 +17,9 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import {
   Wallet, ChevronRight, CheckCircle2, Clock, XCircle, AlertCircle,
-  Loader2, TrendingUp, Shield, Users, Award, FileText,
+  Loader2, TrendingUp, Shield, Users, Award, FileText, ExternalLink,
 } from "lucide-react";
+import { Link } from "wouter";
 import { cn } from "@/lib/utils";
 
 interface FundingPublicSettings {
@@ -27,7 +28,7 @@ interface FundingPublicSettings {
   fundingEnabled: boolean;
   availableSlots: number;
   activeApplications: number;
-  fundedCount: number;
+  approvedOrFundedCount: number;
 }
 
 interface FundingApplication {
@@ -275,6 +276,35 @@ export default function AccountFundingPage() {
         {/* Intro section */}
         {!hasActive && settings?.fundingEnabled && (settings?.availableSlots ?? 0) > 0 && view === "intro" && (
           <>
+            {/* Live funding summary */}
+            <Card className="border-border">
+              <CardContent className="pt-5 pb-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-border">
+                  <div className="pb-4 sm:pb-0 sm:pr-6 flex flex-col gap-0.5">
+                    <p className="text-xs text-muted-foreground">Application Fee</p>
+                    <p className="text-xl font-bold text-foreground">KES {settings.applicationFee.toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground">Paid via M-Pesa, non-refundable</p>
+                  </div>
+                  <div className="py-4 sm:py-0 sm:px-6 flex flex-col gap-0.5">
+                    <p className="text-xs text-muted-foreground">Total Funding Slots</p>
+                    <p className="text-xl font-bold text-foreground">{settings.maxFundingAccounts}</p>
+                    <p className="text-xs text-muted-foreground">{settings.approvedOrFundedCount} approved / funded</p>
+                  </div>
+                  <div className="pt-4 sm:pt-0 sm:pl-6 flex flex-col gap-0.5">
+                    <p className="text-xs text-muted-foreground">Remaining Slots</p>
+                    <p className="text-xl font-bold text-green-400">{settings.availableSlots}</p>
+                    <p className="text-xs text-muted-foreground">Available now</p>
+                  </div>
+                </div>
+                <div className="mt-3 pt-3 border-t border-border">
+                  <Link href="/funding-terms" className="text-xs text-blue-400 hover:text-blue-300 inline-flex items-center gap-1">
+                    <ExternalLink className="h-3 w-3" />
+                    View full Terms &amp; Conditions
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Program info */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <Card className="bg-card border-border">
@@ -323,11 +353,17 @@ export default function AccountFundingPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Terms & Rules</CardTitle>
+                <CardTitle className="text-base flex items-center justify-between">
+                  Terms &amp; Rules
+                  <Link href="/funding-terms" className="text-xs font-normal text-blue-400 hover:text-blue-300 inline-flex items-center gap-1">
+                    <ExternalLink className="h-3 w-3" />
+                    Full T&amp;C
+                  </Link>
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 {[
-                  "The application fee of KES " + (settings.applicationFee?.toLocaleString() ?? "—") + " is non-refundable.",
+                  `The application fee of KES ${settings.applicationFee?.toLocaleString() ?? "—"} is non-refundable.`,
                   "Funded accounts are subject to a maximum drawdown limit of 10%.",
                   "Profit splits are agreed upon approval and vary by account tier.",
                   "Violations of risk rules may result in immediate account suspension.",
