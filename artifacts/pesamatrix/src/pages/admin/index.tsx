@@ -3079,7 +3079,7 @@ export default function AdminPage() {
                       )}
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                       <div className="rounded-lg border border-border p-3 space-y-2">
                         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">MetaApi</p>
                         <StatusRow label="METAAPI_TOKEN" ok={integrationStatus.metaapi.token} />
@@ -3092,6 +3092,13 @@ export default function AdminPage() {
                         <StatusRow label="PASSKEY" ok={integrationStatus.mpesa.passkey} />
                         <StatusRow label="SHORTCODE" ok={integrationStatus.mpesa.shortcode} />
                         <StatusRow label="CALLBACK_URL" ok={integrationStatus.mpesa.callbackUrl} />
+                      </div>
+
+                      <div className="rounded-lg border border-border p-3 space-y-2">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Cloudinary</p>
+                        <StatusRow label="CLOUD_NAME" ok={integrationStatus.cloudinary?.cloudName ?? false} />
+                        <StatusRow label="API_KEY" ok={integrationStatus.cloudinary?.apiKey ?? false} />
+                        <StatusRow label="API_SECRET" ok={integrationStatus.cloudinary?.apiSecret ?? false} />
                       </div>
 
                       <div className="rounded-lg border border-border p-3 space-y-2">

@@ -53,6 +53,7 @@ type IntegrationStatus = {
     callbackUrl: boolean;
   };
   webhook: { secret: boolean };
+  cloudinary: { cloudName: boolean; apiKey: boolean; apiSecret: boolean };
   mode: "live" | "demo";
 };
 
@@ -269,14 +270,22 @@ function IntegrationStatusCard({ data }: { data: IntegrationStatus }) {
     data.mpesa.shortcode &&
     data.mpesa.callbackUrl;
 
-  const rows: { label: string; ok: boolean }[] = [
+  const cloudinaryAll =
+    data.cloudinary.cloudName &&
+    data.cloudinary.apiKey &&
+    data.cloudinary.apiSecret;
+
+  const rows: { label: string; ok: boolean; optional?: boolean }[] = [
     { label: "MetaApi Token",            ok: data.metaapi.token },
     { label: "M-Pesa Consumer Key",      ok: data.mpesa.consumerKey },
     { label: "M-Pesa Consumer Secret",   ok: data.mpesa.consumerSecret },
     { label: "M-Pesa Passkey",           ok: data.mpesa.passkey },
     { label: "M-Pesa Shortcode",         ok: data.mpesa.shortcode },
     { label: "M-Pesa Callback URL",      ok: data.mpesa.callbackUrl },
-    { label: "Webhook Secret",           ok: data.webhook.secret },
+    { label: "Cloudinary Cloud Name",    ok: data.cloudinary.cloudName },
+    { label: "Cloudinary API Key",       ok: data.cloudinary.apiKey },
+    { label: "Cloudinary API Secret",    ok: data.cloudinary.apiSecret },
+    { label: "Webhook Secret",           ok: data.webhook.secret, optional: true },
   ];
 
   return (
@@ -298,18 +307,25 @@ function IntegrationStatusCard({ data }: { data: IntegrationStatus }) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
-        {rows.map(({ label, ok }) => (
+        {rows.map(({ label, ok, optional }) => (
           <div key={label} className="flex items-center justify-between text-xs">
             <span className="text-muted-foreground">{label}</span>
             <div className="flex items-center gap-1.5">
-              <StatusDot ok={ok} />
-              <span className={ok ? "text-green-400" : "text-red-400"}>{ok ? "set" : "missing"}</span>
+              <StatusDot ok={ok || !!optional} />
+              <span className={ok ? "text-green-400" : optional ? "text-muted-foreground" : "text-red-400"}>
+                {ok ? "set" : optional ? "optional" : "missing"}
+              </span>
             </div>
           </div>
         ))}
         {!mpesaAll && (
           <p className="text-[11px] text-yellow-400/80 pt-1">
             M-Pesa running in demo mode — payments are simulated.
+          </p>
+        )}
+        {!cloudinaryAll && (
+          <p className="text-[11px] text-yellow-400/80 pt-1">
+            Cloudinary not configured — file uploads will be unavailable.
           </p>
         )}
       </CardContent>

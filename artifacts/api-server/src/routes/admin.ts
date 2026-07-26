@@ -652,8 +652,11 @@ router.get("/admin/integration-status", authenticate, requireAdmin, async (_req,
   const passkey = !!process.env.MPESA_PASSKEY;
   const shortcode = !!process.env.MPESA_SHORTCODE;
   const webhookSecret = !!process.env.COPYFACTORY_WEBHOOK_SECRET;
-
   const callbackUrl = !!process.env.MPESA_CALLBACK_URL;
+
+  const cloudinaryCloudName = !!process.env.CLOUDINARY_CLOUD_NAME;
+  const cloudinaryApiKey = !!process.env.CLOUDINARY_API_KEY;
+  const cloudinaryApiSecret = !!process.env.CLOUDINARY_API_SECRET;
 
   const mpesaLive = consumerKey && consumerSecret && passkey && shortcode && callbackUrl;
 
@@ -661,6 +664,7 @@ router.get("/admin/integration-status", authenticate, requireAdmin, async (_req,
     metaapi: { token: metaApiToken },
     mpesa: { consumerKey, consumerSecret, passkey, shortcode, callbackUrl },
     webhook: { secret: webhookSecret },
+    cloudinary: { cloudName: cloudinaryCloudName, apiKey: cloudinaryApiKey, apiSecret: cloudinaryApiSecret },
     mode: mpesaLive ? "live" : "demo",
   });
 });
