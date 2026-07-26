@@ -2824,6 +2824,77 @@ export default function AdminPage() {
           ))}
         </div>
 
+        {/* Platform Capacity Widget */}
+        {stats && (() => {
+          const pct = (stats as unknown as { capacityPercentage: number }).capacityPercentage ?? 0;
+          const active = (stats as unknown as { activeSlaveAccounts: number }).activeSlaveAccounts ?? 0;
+          const total = (stats as unknown as { totalCapacity: number }).totalCapacity ?? 2000;
+          const remaining = (stats as unknown as { remainingCapacity: number }).remainingCapacity ?? (total - active);
+          const isWarning80 = pct >= 80 && pct < 90;
+          const isWarning90 = pct >= 90 && pct < 100;
+          const isFull = pct >= 100;
+          const barColor = isFull ? "bg-red-500" : isWarning90 ? "bg-orange-500" : isWarning80 ? "bg-yellow-500" : "bg-blue-500";
+          return (
+            <Card className={`border-border ${isFull ? "border-red-500/40" : isWarning90 ? "border-orange-500/30" : isWarning80 ? "border-yellow-500/30" : ""}`}>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <Server className="h-4 w-4 text-blue-400" />
+                    Platform Capacity
+                  </CardTitle>
+                  <span className={`text-xs font-bold ${isFull ? "text-red-400" : isWarning90 ? "text-orange-400" : isWarning80 ? "text-yellow-400" : "text-muted-foreground"}`}>
+                    {pct}% used
+                  </span>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Warning alerts */}
+                {isFull && (
+                  <div className="flex items-center gap-2 rounded-lg bg-red-500/10 border border-red-500/30 px-3 py-2 text-sm text-red-400">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    Platform at full capacity. No new slave accounts can be activated until existing ones are removed.
+                  </div>
+                )}
+                {isWarning90 && (
+                  <div className="flex items-center gap-2 rounded-lg bg-orange-500/10 border border-orange-500/30 px-3 py-2 text-sm text-orange-400">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    Platform is at {pct}% capacity — approaching the limit. Plan accordingly.
+                  </div>
+                )}
+                {isWarning80 && (
+                  <div className="flex items-center gap-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30 px-3 py-2 text-sm text-yellow-400">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    Platform is at {pct}% capacity — nearing 80% threshold.
+                  </div>
+                )}
+                {/* Progress bar */}
+                <div className="space-y-1.5">
+                  <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${barColor}`}
+                      style={{ width: `${Math.min(100, pct)}%` }}
+                    />
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 text-center text-xs pt-1">
+                    <div>
+                      <p className="text-muted-foreground">Total Capacity</p>
+                      <p className="font-bold text-foreground text-base">{total.toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Active Accounts</p>
+                      <p className={`font-bold text-base ${isFull ? "text-red-400" : isWarning90 ? "text-orange-400" : "text-foreground"}`}>{active.toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Remaining</p>
+                      <p className={`font-bold text-base ${remaining === 0 ? "text-red-400" : remaining < 200 ? "text-orange-400" : "text-green-400"}`}>{remaining.toLocaleString()}</p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })()}
+
         <CfPipelineAuditCard />
 
         <DailyPlChartCard />

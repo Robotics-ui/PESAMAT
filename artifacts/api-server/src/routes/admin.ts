@@ -41,6 +41,8 @@ router.get("/pricing", async (_req, res): Promise<void> => {
   res.json({ dailyFee: parseFloat(settings.dailyFee as string), minDays: settings.minDays, maxDays: settings.maxDays });
 });
 
+const PLATFORM_CAPACITY = 2000;
+
 router.get("/admin/stats", authenticate, requireAdmin, async (_req, res): Promise<void> => {
   const [totalUsersResult] = await db.select({ count: count() }).from(usersTable);
   const [activeSubsResult] = await db
@@ -59,14 +61,21 @@ router.get("/admin/stats", authenticate, requireAdmin, async (_req, res): Promis
     .from(masterAccountsTable)
     .where(eq(masterAccountsTable.status, "pending_approval"));
 
+  const activeSlaveAccounts = Number(slaveCountResult.count);
+  const remainingCapacity = Math.max(0, PLATFORM_CAPACITY - activeSlaveAccounts);
+  const capacityPercentage = Math.round((activeSlaveAccounts / PLATFORM_CAPACITY) * 100);
+
   res.json({
     totalUsers: totalUsersResult.count,
     activeSubscriptions: activeSubsResult.count,
     totalRevenue: parseFloat((revenueResult.total as string) ?? "0"),
-    activeSlaveAccounts: slaveCountResult.count,
+    activeSlaveAccounts,
     activeStrategies: strategyCountResult.count,
     totalPayments: paymentCountResult.count,
     pendingMasterApprovals: pendingMasterResult.count,
+    totalCapacity: PLATFORM_CAPACITY,
+    remainingCapacity,
+    capacityPercentage,
   });
 });
 

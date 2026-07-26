@@ -15,7 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import {
   Wallet, Search, RefreshCw, Download, Eye, CheckCircle2, XCircle,
   Clock, FileText, Award, AlertCircle, Loader2, TrendingUp, Users,
-  Shield,
+  Shield, Zap, EyeOff,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -61,6 +61,8 @@ interface FundingApplication {
   status: string;
   adminNotes: string | null;
   reviewedAt: string | null;
+  activatedAt: string | null;
+  linkedSlaveAccountId: number | null;
   createdAt: string;
 }
 
@@ -131,6 +133,123 @@ function StatCard({ icon: Icon, label, value, color = "text-foreground" }: {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function ActivateDialog({
+  app, token, onClose,
+}: { app: FundingApplication; token: string; onClose: () => void }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [showPwd, setShowPwd] = useState(false);
+  const [form, setForm] = useState({
+    mt5Login: app.mt5AccountNumber ?? "",
+    server: "",
+    tradingPassword: "",
+    metaapiRegion: "",
+  });
+
+  const activateMutation = useMutation({
+    mutationFn: async () =>
+      apiFetch(`/admin/funding/applications/${app.id}/activate`, token, {
+        method: "POST",
+        body: JSON.stringify(form),
+      }),
+    onSuccess: () => {
+      toast({ title: "Funded account activated", description: "Slave account created successfully." });
+      qc.invalidateQueries({ queryKey: ["admin-funding-applications"] });
+      qc.invalidateQueries({ queryKey: ["admin-funding-stats"] });
+      onClose();
+    },
+    onError: (err: Error) => toast({ title: "Activation failed", description: err.message, variant: "destructive" }),
+  });
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Zap className="h-5 w-5 text-green-400" />
+            Activate Funded Account #{app.id}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 text-sm">
+          <div className="rounded-lg bg-muted/40 border border-border p-3 text-xs text-muted-foreground">
+            Creating a slave account for <span className="font-medium text-foreground">{app.fullName}</span> ({app.email}).
+            This will count toward the 2,000-account platform capacity.
+          </div>
+          <div className="space-y-1.5">
+            <Label>MT5 Login</Label>
+            <input
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              value={form.mt5Login}
+              onChange={(e) => setForm((f) => ({ ...f, mt5Login: e.target.value }))}
+              placeholder="e.g. 12345678"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Broker</Label>
+            <input
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              value={app.brokerName}
+              disabled
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>MT5 Server <span className="text-red-400">*</span></Label>
+            <input
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              value={form.server}
+              onChange={(e) => setForm((f) => ({ ...f, server: e.target.value }))}
+              placeholder="e.g. ExnessReal2-Server"
+              required
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Trading Password (Investor) <span className="text-red-400">*</span></Label>
+            <div className="relative">
+              <input
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 pr-10 text-sm shadow-xs transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                type={showPwd ? "text" : "password"}
+                value={form.tradingPassword}
+                onChange={(e) => setForm((f) => ({ ...f, tradingPassword: e.target.value }))}
+                placeholder="••••••••"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPwd((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                tabIndex={-1}
+              >
+                {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>MetaApi Region <span className="text-muted-foreground text-xs">(optional)</span></Label>
+            <input
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              value={form.metaapiRegion}
+              onChange={(e) => setForm((f) => ({ ...f, metaapiRegion: e.target.value }))}
+              placeholder="e.g. new-york"
+            />
+          </div>
+        </div>
+        <DialogFooter className="gap-2 mt-2">
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button
+            className="bg-green-600 hover:bg-green-700 text-white"
+            disabled={activateMutation.isPending || !form.server || !form.tradingPassword}
+            onClick={() => activateMutation.mutate()}
+          >
+            {activateMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+            <Zap className="h-4 w-4 mr-1" />
+            Activate Slave Account
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -280,6 +399,7 @@ export default function FundingAdminPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [selectedApp, setSelectedApp] = useState<FundingApplication | null>(null);
+  const [activateApp, setActivateApp] = useState<FundingApplication | null>(null);
   const [settingsForm, setSettingsForm] = useState<Partial<FundingSettings> | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
 
@@ -502,10 +622,23 @@ export default function FundingAdminPage() {
                               {new Date(app.createdAt).toLocaleDateString()}
                             </td>
                             <td className="px-4 py-3">
-                              <Button size="sm" variant="ghost" onClick={() => setSelectedApp(app)} className="h-7 px-2">
-                                <Eye className="h-3.5 w-3.5 mr-1" />
-                                Review
-                              </Button>
+                              <div className="flex items-center gap-1">
+                                <Button size="sm" variant="ghost" onClick={() => setSelectedApp(app)} className="h-7 px-2">
+                                  <Eye className="h-3.5 w-3.5 mr-1" />
+                                  Review
+                                </Button>
+                                {app.status === "funded" && !app.linkedSlaveAccountId && (
+                                  <Button size="sm" variant="ghost" onClick={() => setActivateApp(app)} className="h-7 px-2 text-green-400 hover:text-green-300">
+                                    <Zap className="h-3.5 w-3.5 mr-1" />
+                                    Activate
+                                  </Button>
+                                )}
+                                {app.linkedSlaveAccountId && (
+                                  <span className="text-xs text-green-400 flex items-center gap-1 whitespace-nowrap">
+                                    <CheckCircle2 className="h-3 w-3" /> Activated
+                                  </span>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         );
@@ -598,6 +731,15 @@ export default function FundingAdminPage() {
           app={selectedApp}
           token={token!}
           onClose={() => setSelectedApp(null)}
+        />
+      )}
+
+      {/* Activate Dialog */}
+      {activateApp && (
+        <ActivateDialog
+          app={activateApp}
+          token={token!}
+          onClose={() => setActivateApp(null)}
         />
       )}
     </AppLayout>

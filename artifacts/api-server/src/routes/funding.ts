@@ -1,8 +1,11 @@
 import { Router } from "express";
 import { eq, desc, and, or, ilike, count, sum, ne } from "drizzle-orm";
-import { db, fundingSettingsTable, fundingApplicationsTable, usersTable } from "@workspace/db";
+import { db, fundingSettingsTable, fundingApplicationsTable, usersTable, slaveAccountsTable } from "@workspace/db";
 import { authenticate, requireAdmin } from "../middlewares/authenticate";
 import { logger } from "../lib/logger";
+import { encryptCredential } from "../lib/auth";
+
+const PLATFORM_CAPACITY = 2000;
 import {
   notifyFundingApplicationSubmitted,
   notifyFundingApplicationApproved,
@@ -498,6 +501,70 @@ router.patch("/admin/funding/applications/:id", authenticate, requireAdmin, asyn
   }
 
   res.json({ ...updated, applicationFee: parseFloat(String(updated.applicationFee)) });
+});
+
+// ─── Admin: Activate funded account → create slave account ──────────────────
+
+router.post("/admin/funding/applications/:id/activate", authenticate, requireAdmin, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params["id"]), 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const { mt5Login, server, tradingPassword, metaapiRegion } = req.body as {
+    mt5Login?: string;
+    server: string;
+    tradingPassword: string;
+    metaapiRegion?: string;
+  };
+
+  if (!server || !tradingPassword) {
+    res.status(400).json({ error: "server and tradingPassword are required" });
+    return;
+  }
+
+  const [app] = await db.select().from(fundingApplicationsTable).where(eq(fundingApplicationsTable.id, id)).limit(1);
+  if (!app) { res.status(404).json({ error: "Application not found" }); return; }
+  if (app.status !== "funded") {
+    res.status(400).json({ error: "Only funded applications can be activated" });
+    return;
+  }
+  if (app.linkedSlaveAccountId) {
+    res.status(400).json({ error: "This application already has an active slave account" });
+    return;
+  }
+
+  // Enforce platform capacity
+  const [{ slaveCount }] = await db.select({ slaveCount: count() }).from(slaveAccountsTable);
+  if (Number(slaveCount) >= PLATFORM_CAPACITY) {
+    res.status(400).json({ error: `Platform capacity reached (${PLATFORM_CAPACITY} slave accounts). Cannot activate more funded accounts.` });
+    return;
+  }
+
+  const login = (mt5Login?.trim() || app.mt5AccountNumber || app.email).trim();
+
+  // Create slave account
+  const [slave] = await db.insert(slaveAccountsTable).values({
+    userId: app.userId,
+    mt5Login: login,
+    broker: app.brokerName,
+    server: server.trim(),
+    tradingPasswordEncrypted: encryptCredential(tradingPassword),
+    platform: "mt5",
+    status: "connecting",
+    ...(metaapiRegion?.trim() ? { metaapiRegion: metaapiRegion.trim() } : {}),
+  }).returning();
+
+  // Link the slave account back to the application
+  const [updated] = await db.update(fundingApplicationsTable).set({
+    activatedAt: new Date(),
+    linkedSlaveAccountId: slave.id,
+  }).where(eq(fundingApplicationsTable.id, id)).returning();
+
+  logger.info(
+    { appId: id, slaveId: slave.id, adminId: req.userId, mt5Login: login },
+    "Funded account activated — slave account created"
+  );
+
+  res.json({ ...updated, slaveAccount: slave });
 });
 
 router.get("/admin/funding/export", authenticate, requireAdmin, async (req, res): Promise<void> => {

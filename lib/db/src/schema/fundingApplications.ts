@@ -1,4 +1,5 @@
 import { pgTable, serial, integer, text, numeric, timestamp, index } from "drizzle-orm/pg-core";
+
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -35,6 +36,9 @@ export const fundingApplicationsTable = pgTable("funding_applications", {
   adminNotes: text("admin_notes"),
   reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
   reviewedBy: integer("reviewed_by"),
+  // Funded account activation: tracks when a funded application was converted to a slave account
+  activatedAt: timestamp("activated_at", { withTimezone: true }),
+  linkedSlaveAccountId: integer("linked_slave_account_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, (table) => [
