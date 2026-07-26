@@ -147,6 +147,25 @@ export type MetaApiCallResult<T = unknown> = {
   data: T;
 };
 
+function redactMetaApiAuditBody(body: unknown): unknown {
+  if (!body || typeof body !== "object") return body;
+  if (Array.isArray(body)) return body.map(redactMetaApiAuditBody);
+  return Object.fromEntries(
+    Object.entries(body as Record<string, unknown>).map(([key, value]) => {
+      const normalizedKey = key.toLowerCase();
+      if (
+        normalizedKey.includes("password") ||
+        normalizedKey.includes("secret") ||
+        normalizedKey.includes("token") ||
+        normalizedKey.includes("key")
+      ) {
+        return [key, "[REDACTED]"];
+      }
+      return [key, redactMetaApiAuditBody(value)];
+    }),
+  );
+}
+
 /**
  * Make a MetaApi REST call with full request/response audit logging.
  * Every outbound request and every API response body is written to the
@@ -166,7 +185,7 @@ export async function callMetaApi<T = unknown>(
       metaApiAudit: "request",
       method,
       url,
-      body: hasBody ? body : undefined,
+      body: hasBody ? redactMetaApiAuditBody(body) : undefined,
     },
     `MetaApi → ${method} ${url}`
   );
@@ -216,6 +235,132 @@ export async function callMetaApi<T = unknown>(
   );
 
   return { ok: response.ok, status: response.status, data };
+}
+
+export type MetaApiVerificationResult = {
+  ok: boolean;
+  reason: string;
+  metaapiAccountId?: string;
+  metaapiRegion?: string;
+};
+
+/**
+ * Validates an applicant's read-only MT5 credentials through MetaApi.
+ * A temporary cloud account is created and deployed so MetaApi validates the
+ * login, server and investor password as one operation. The temporary account
+ * is undeployed after the connection result is observed; no trading role is
+ * assigned and the investor password is never included in audit logs.
+ */
+export async function verifyMt5InvestorCredentials(input: {
+  brokerName: string;
+  mt5AccountNumber: string;
+  mt5Server: string;
+  investorPassword: string;
+}): Promise<MetaApiVerificationResult> {
+  const token = await getMetaApiToken();
+  if (!token) {
+    return { ok: false, reason: "MetaApi verification is not configured. Please try again later." };
+  }
+
+  let metaapiAccountId: string | undefined;
+  let metaapiRegion: string | undefined;
+  try {
+    const createResult = await callMetaApi<{
+      id?: string;
+      region?: string;
+      message?: string;
+      details?: string;
+    }>("POST", `${PROVISIONING_API}/users/current/accounts`, token, {
+      login: input.mt5AccountNumber,
+      password: input.investorPassword,
+      server: input.mt5Server,
+      name: `verification-${input.brokerName}-${input.mt5AccountNumber}`,
+      platform: "mt5",
+      type: "cloud-g2",
+      reliability: "regular",
+    });
+
+    if (!createResult.ok || !createResult.data.id) {
+      const data = createResult.data;
+      const detail =
+        typeof data === "object" && data !== null
+          ? (data.message ?? data.details)
+          : undefined;
+      const reason = String(detail ?? "").toLowerCase();
+      if (reason.includes("login") || reason.includes("account")) {
+        return { ok: false, reason: "Invalid MT5 account number or investor password." };
+      }
+      if (reason.includes("server")) {
+        return { ok: false, reason: "The MT5 server is invalid or not supported." };
+      }
+      return { ok: false, reason: detail ?? `MetaApi rejected the account (HTTP ${createResult.status}).` };
+    }
+
+    metaapiAccountId = createResult.data.id;
+    metaapiRegion = createResult.data.region;
+
+    const deployResult = await callMetaApi(
+      "POST",
+      `${PROVISIONING_API}/users/current/accounts/${metaapiAccountId}/deploy`,
+      token,
+    );
+    if (!deployResult.ok && deployResult.status !== 204) {
+      return { ok: false, reason: `MetaApi could not connect to the account (HTTP ${deployResult.status}).`, metaapiAccountId, metaapiRegion };
+    }
+
+    let lastState: { state?: string; connectionStatus?: string; synchronizationStatus?: string; message?: string } = {};
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const statusResult = await callMetaApi<typeof lastState>(
+        "GET",
+        `${PROVISIONING_API}/users/current/accounts/${metaapiAccountId}`,
+        token,
+      );
+      if (!statusResult.ok) continue;
+      lastState = statusResult.data;
+      const state = String(lastState.state ?? "").toUpperCase();
+      const connection = String(lastState.connectionStatus ?? "").toUpperCase();
+      const synchronization = String(lastState.synchronizationStatus ?? "").toUpperCase();
+      if (connection === "CONNECTED" || synchronization === "SYNCHRONIZED" || state === "CONNECTED") {
+        return { ok: true, reason: "MT5 account successfully verified.", metaapiAccountId, metaapiRegion };
+      }
+      if (state === "FAILED" || connection === "FAILED" || state === "ERROR") {
+        return {
+          ok: false,
+          reason: lastState.message ?? "MetaApi could not access the account. Check the server and investor password.",
+          metaapiAccountId,
+          metaapiRegion,
+        };
+      }
+    }
+
+    return {
+      ok: false,
+      reason: lastState.message ?? "MetaApi connection timed out before the account could be verified.",
+      metaapiAccountId,
+      metaapiRegion,
+    };
+  } catch (err) {
+    logger.error({ err }, "MT5 investor credential verification failed");
+    return {
+      ok: false,
+      reason: "Connection to MetaApi failed. Please check the account details and try again.",
+      metaapiAccountId,
+      metaapiRegion,
+    };
+  } finally {
+    if (metaapiAccountId) {
+      try {
+        await callMetaApi(
+          "POST",
+          `${PROVISIONING_API}/users/current/accounts/${metaapiAccountId}/undeploy`,
+          token,
+        );
+      } catch (err) {
+        logger.warn({ err, metaapiAccountId }, "Failed to clean up temporary MetaApi verification account");
+      }
+    }
+  }
 }
 
 // ── CopyFactory provider role check ──────────────────────────────────────────

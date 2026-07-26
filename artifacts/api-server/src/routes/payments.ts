@@ -309,7 +309,7 @@ router.post("/payments/callback", async (req, res): Promise<void> => {
         if (ResultCode === 0) {
           const [updatedApp] = await db
             .update(fundingApplicationsTable)
-            .set({ paymentStatus: "completed", status: "submitted", mpesaReceipt: mpesaReceipt ?? null })
+            .set({ paymentStatus: "completed", status: "verification_pending", mpesaReceipt: mpesaReceipt ?? null })
             .where(eq(fundingApplicationsTable.id, fundingApp.id))
             .returning();
 

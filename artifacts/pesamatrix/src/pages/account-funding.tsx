@@ -35,6 +35,11 @@ interface FundingApplication {
   id: number;
   status: string;
   paymentStatus: string;
+  mt5VerificationStatus: string;
+  mt5Server: string | null;
+  mt5VerificationDate: string | null;
+  mt5VerificationResult: string | null;
+  mt5VerificationAttempts: number;
   fullName: string;
   email: string;
   applicationFee: number;
@@ -45,7 +50,8 @@ interface FundingApplication {
 
 const STATUS_META: Record<string, { label: string; color: string; icon: React.ElementType }> = {
   pending_payment: { label: "Pending Payment", color: "text-yellow-400", icon: Clock },
-  submitted: { label: "Under Review", color: "text-blue-400", icon: FileText },
+  verification_pending: { label: "MT5 Verification Required", color: "text-yellow-400", icon: AlertCircle },
+  submitted: { label: "MT5 Verification Required", color: "text-yellow-400", icon: AlertCircle },
   under_review: { label: "Under Review", color: "text-blue-400", icon: FileText },
   approved: { label: "Approved", color: "text-green-400", icon: CheckCircle2 },
   rejected: { label: "Rejected", color: "text-red-400", icon: XCircle },
@@ -92,6 +98,14 @@ export default function AccountFundingPage() {
   const [submitting, setSubmitting] = useState(false);
   const [pendingAppId, setPendingAppId] = useState<number | null>(null);
   const [pollCount, setPollCount] = useState(0);
+  const [verificationForm, setVerificationForm] = useState({
+    brokerName: "",
+    mt5AccountNumber: "",
+    mt5Server: "",
+    investorPassword: "",
+  });
+  const [verificationSubmitting, setVerificationSubmitting] = useState(false);
+  const [verificationError, setVerificationError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && !token) navigate("/login");
@@ -173,7 +187,7 @@ export default function AccountFundingPage() {
         toast({ title: "Error", description: data.error ?? "Submission failed", variant: "destructive" });
         return;
       }
-      if (data.status === "submitted" || data.demo) {
+      if (data.status === "verification_pending" || data.demo) {
         setView("done");
         refetchApps();
       } else {
@@ -439,24 +453,6 @@ export default function AccountFundingPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label>Broker Name</Label>
-                    <Input value={form.brokerName} onChange={(e) => setField("brokerName", e.target.value)} placeholder="e.g. Exness" required />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>MT4/MT5 Account Number <span className="text-muted-foreground text-xs">(optional)</span></Label>
-                    <Input value={form.mt5AccountNumber} onChange={(e) => setField("mt5AccountNumber", e.target.value)} placeholder="e.g. 12345678" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Account Type</Label>
-                    <Select value={form.accountType} onValueChange={(v) => setField("accountType", v as "Demo" | "Live")} required>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Demo">Demo</SelectItem>
-                        <SelectItem value="Live">Live</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
                 </div>
                 <div className="space-y-1.5">
                   <Label>Trading Strategy</Label>
@@ -511,15 +507,93 @@ export default function AccountFundingPage() {
           </Card>
         )}
 
+        {/* Stage 2: MT5 verification */}
+        {activeApp && activeApp.paymentStatus === "completed" && activeApp.mt5VerificationStatus !== "verified" && (
+          <Card className="border-blue-600/30 bg-blue-600/5">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Shield className="h-5 w-5 text-blue-400" />
+                Stage 2: Verify Your MT5 Account
+              </CardTitle>
+              <CardDescription>
+                Your application fee is confirmed. Enter your MT5 read-only details so we can verify the account before admin review.
+                We never ask for or store your Master/Trading Password.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form
+                className="space-y-4"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  setVerificationSubmitting(true);
+                  setVerificationError(null);
+                  try {
+                    const res = await fetch(`/api/funding/applications/${activeApp.id}/verify-mt5`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                      body: JSON.stringify(verificationForm),
+                    });
+                    const data = await res.json() as { message?: string; error?: string; verified?: boolean };
+                    if (!res.ok || !data.verified) {
+                      setVerificationError(data.message ?? data.error ?? "MT5 verification failed.");
+                      await refetchApps();
+                      return;
+                    }
+                    await refetchApps();
+                    toast({ title: "MT5 Account Successfully Verified.", description: "Your application has moved to the admin review queue." });
+                  } catch {
+                    setVerificationError("Verification could not be completed. Please check your details and try again.");
+                  } finally {
+                    setVerificationSubmitting(false);
+                  }
+                }}
+              >
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label>Broker Name</Label>
+                    <Input value={verificationForm.brokerName} onChange={(e) => setVerificationForm((f) => ({ ...f, brokerName: e.target.value }))} placeholder="e.g. Exness" required />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>MT5 Account Number</Label>
+                    <Input value={verificationForm.mt5AccountNumber} onChange={(e) => setVerificationForm((f) => ({ ...f, mt5AccountNumber: e.target.value }))} placeholder="e.g. 12345678" inputMode="numeric" required />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>MT5 Server</Label>
+                    <Input value={verificationForm.mt5Server} onChange={(e) => setVerificationForm((f) => ({ ...f, mt5Server: e.target.value }))} placeholder="e.g. Exness-MT5Real" required />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Investor Password <span className="text-muted-foreground text-xs">(read-only)</span></Label>
+                    <Input type="password" value={verificationForm.investorPassword} onChange={(e) => setVerificationForm((f) => ({ ...f, investorPassword: e.target.value }))} placeholder="Read-only password" autoComplete="off" required />
+                  </div>
+                </div>
+                {verificationError && (
+                  <div className="rounded-lg bg-red-600/10 border border-red-600/30 p-3 text-sm text-red-300">
+                    <p className="font-medium">Verification failed</p>
+                    <p className="mt-1">{verificationError}</p>
+                    <p className="mt-1 text-xs text-red-200/70">Update the details above and retry. Your password is never displayed after submission.</p>
+                  </div>
+                )}
+                <div className="rounded-lg bg-muted/40 border border-border p-3 text-xs text-muted-foreground">
+                  MetaApi will verify that the account exists, the server is valid, and the investor password provides read-only access. Trading access is not requested.
+                </div>
+                <Button type="submit" disabled={verificationSubmitting} className="bg-blue-600 hover:bg-blue-700 text-white">
+                  {verificationSubmitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                  {verificationSubmitting ? "Verifying MT5 Account..." : "Verify MT5 Account"}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Success */}
         {view === "done" && (
           <Card className="border-green-600/30 bg-green-600/5">
             <CardContent className="pt-8 pb-8 flex flex-col items-center gap-4 text-center">
               <CheckCircle2 className="h-12 w-12 text-green-500" />
               <div>
-                <p className="text-lg font-bold text-foreground">Application Submitted!</p>
+                  <p className="text-lg font-bold text-foreground">Payment Confirmed</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Your payment was confirmed and your application is now under review. We will notify you via SMS once a decision is made.
+                   Your payment was confirmed. Complete Stage 2 above to verify your MT5 account before admin review.
                 </p>
               </div>
               <Button variant="outline" onClick={() => refetchApps()}>View My Application</Button>

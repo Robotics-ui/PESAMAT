@@ -3,10 +3,10 @@ import { pgTable, serial, integer, text, numeric, timestamp, index } from "drizz
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
-// Status flow: pending_payment → submitted → under_review → approved | rejected → funded
+// Status flow: pending_payment → verification_pending → under_review → approved | rejected → funded
 export const FUNDING_APPLICATION_STATUSES = [
   "pending_payment",
-  "submitted",
+  "verification_pending",
   "under_review",
   "approved",
   "rejected",
@@ -23,9 +23,9 @@ export const fundingApplicationsTable = pgTable("funding_applications", {
   phone: text("phone").notNull(),
   country: text("country").notNull(),
   tradingExperience: text("trading_experience").notNull(),
-  brokerName: text("broker_name").notNull(),
+  brokerName: text("broker_name"),
   mt5AccountNumber: text("mt5_account_number"),
-  accountType: text("account_type").notNull(), // Demo | Live
+  accountType: text("account_type").notNull().default("Live"), // Demo | Live
   tradingStrategy: text("trading_strategy").notNull(),
   additionalNotes: text("additional_notes"),
   applicationFee: numeric("application_fee", { precision: 10, scale: 2 }).notNull(),
@@ -33,6 +33,14 @@ export const fundingApplicationsTable = pgTable("funding_applications", {
   mpesaReceipt: text("mpesa_receipt"),
   paymentStatus: text("payment_status").notNull().default("pending"), // pending | completed | failed
   status: text("status").notNull().default("pending_payment"),
+  mt5Server: text("mt5_server"),
+  investorPasswordEncrypted: text("investor_password_encrypted"),
+  mt5VerificationStatus: text("mt5_verification_status").notNull().default("pending"), // pending | verified | failed
+  mt5VerificationDate: timestamp("mt5_verification_date", { withTimezone: true }),
+  mt5VerificationResult: text("mt5_verification_result"),
+  mt5VerificationAttempts: integer("mt5_verification_attempts").notNull().default(0),
+  metaapiVerificationAccountId: text("metaapi_verification_account_id"),
+  metaapiVerificationRegion: text("metaapi_verification_region"),
   adminNotes: text("admin_notes"),
   reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
   reviewedBy: integer("reviewed_by"),

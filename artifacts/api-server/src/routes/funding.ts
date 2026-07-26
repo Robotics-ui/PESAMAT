@@ -1,9 +1,18 @@
 import { Router } from "express";
 import { eq, desc, and, or, ilike, count, sum, ne } from "drizzle-orm";
-import { db, fundingSettingsTable, fundingApplicationsTable, usersTable, slaveAccountsTable, paymentsTable } from "@workspace/db";
+import {
+  db,
+  fundingSettingsTable,
+  fundingApplicationsTable,
+  fundingVerificationAttemptsTable,
+  usersTable,
+  slaveAccountsTable,
+  paymentsTable,
+} from "@workspace/db";
 import { authenticate, requireAdmin } from "../middlewares/authenticate";
 import { logger } from "../lib/logger";
 import { encryptCredential } from "../lib/auth";
+import { verifyMt5InvestorCredentials } from "../lib/metaapi";
 
 const PLATFORM_CAPACITY = 2000;
 import {
@@ -27,6 +36,14 @@ function normalizePhone(phone: string): string {
   if (p.startsWith("0")) p = "254" + p.slice(1);
   else if (/^[71]/.test(p) && p.length === 9) p = "254" + p;
   return p;
+}
+
+function serializeFundingApplication(app: typeof fundingApplicationsTable.$inferSelect) {
+  const { investorPasswordEncrypted: _investorPasswordEncrypted, ...safeApp } = app;
+  return {
+    ...safeApp,
+    applicationFee: parseFloat(String(app.applicationFee)),
+  };
 }
 
 async function initiateStk(
@@ -134,14 +151,14 @@ router.get("/funding/applications/my", authenticate, async (req, res): Promise<v
     .orderBy(desc(fundingApplicationsTable.createdAt));
 
   res.json(
-    apps.map((a) => ({ ...a, applicationFee: parseFloat(String(a.applicationFee)) }))
+    apps.map(serializeFundingApplication)
   );
 });
 
 router.post("/funding/apply", authenticate, async (req, res): Promise<void> => {
   const { fullName, email, phone, country, tradingExperience, brokerName, mt5AccountNumber, accountType, tradingStrategy, additionalNotes } = req.body as Record<string, string>;
 
-  if (!fullName || !email || !phone || !country || !tradingExperience || !brokerName || !accountType || !tradingStrategy) {
+  if (!fullName || !email || !phone || !country || !tradingExperience || !tradingStrategy) {
     res.status(400).json({ error: "Missing required fields" });
     return;
   }
@@ -177,7 +194,7 @@ router.post("/funding/apply", authenticate, async (req, res): Promise<void> => {
         ),
         or(
           eq(fundingApplicationsTable.status, "pending_payment"),
-          eq(fundingApplicationsTable.status, "submitted"),
+          eq(fundingApplicationsTable.status, "verification_pending"),
           eq(fundingApplicationsTable.status, "under_review"),
           eq(fundingApplicationsTable.status, "approved")
         )
@@ -203,9 +220,9 @@ router.post("/funding/apply", authenticate, async (req, res): Promise<void> => {
       phone: normalizedPhone,
       country,
       tradingExperience,
-      brokerName,
+      brokerName: brokerName?.trim() || null,
       mt5AccountNumber: mt5AccountNumber || null,
-      accountType,
+      accountType: accountType || "Live",
       tradingStrategy,
       additionalNotes: additionalNotes || null,
       applicationFee: fee.toFixed(2),
@@ -237,7 +254,7 @@ router.post("/funding/apply", authenticate, async (req, res): Promise<void> => {
         checkoutRequestId: stkResult.checkoutRequestId,
         mpesaReceipt: demoReceipt,
         paymentStatus: "completed",
-        status: "submitted",
+        status: "verification_pending",
       })
       .where(eq(fundingApplicationsTable.id, app.id))
       .returning();
@@ -271,7 +288,7 @@ router.post("/funding/apply", authenticate, async (req, res): Promise<void> => {
       logger.info({ adminPhone: adminUser.phone, appId: app.id }, "Notifying admin of new funding application");
     }
 
-    res.json({ applicationId: updated.id, checkoutRequestId: stkResult.checkoutRequestId, demo: true, status: "submitted" });
+    res.json({ applicationId: updated.id, checkoutRequestId: stkResult.checkoutRequestId, demo: true, status: "verification_pending" });
     return;
   }
 
@@ -342,7 +359,7 @@ router.get("/funding/applications/:id/payment-verify", authenticate, async (req,
     if (resultCode === 0) {
       const [updated] = await db
         .update(fundingApplicationsTable)
-        .set({ paymentStatus: "completed", status: "submitted" })
+        .set({ paymentStatus: "completed", status: "verification_pending" })
         .where(eq(fundingApplicationsTable.id, app.id))
         .returning();
 
@@ -385,6 +402,109 @@ router.get("/funding/applications/:id/payment-verify", authenticate, async (req,
     logger.error({ err }, "Funding STK Query error");
     res.json({ paymentStatus: app.paymentStatus, status: app.status });
   }
+});
+
+router.post("/funding/applications/:id/verify-mt5", authenticate, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params["id"]), 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const { brokerName, mt5AccountNumber, mt5Server, investorPassword } = req.body as Record<string, string>;
+  if (!brokerName?.trim() || !mt5AccountNumber?.trim() || !mt5Server?.trim() || !investorPassword) {
+    res.status(400).json({ error: "Broker name, MT5 account number, MT5 server and investor password are required." });
+    return;
+  }
+  if (!/^\d+$/.test(mt5AccountNumber.trim())) {
+    res.status(400).json({ error: "MT5 account number must contain digits only." });
+    return;
+  }
+
+  const [app] = await db
+    .select()
+    .from(fundingApplicationsTable)
+    .where(and(eq(fundingApplicationsTable.id, id), eq(fundingApplicationsTable.userId, req.userId!)))
+    .limit(1);
+  if (!app) { res.status(404).json({ error: "Application not found" }); return; }
+  if (app.paymentStatus !== "completed") {
+    res.status(400).json({ error: "Payment must be confirmed before MT5 verification." });
+    return;
+  }
+  if (["approved", "funded"].includes(app.status)) {
+    res.status(400).json({ error: "This application can no longer be verified." });
+    return;
+  }
+
+  const normalizedLogin = mt5AccountNumber.trim();
+  const duplicateSlave = await db
+    .select({ id: slaveAccountsTable.id })
+    .from(slaveAccountsTable)
+    .where(eq(slaveAccountsTable.mt5Login, normalizedLogin))
+    .limit(1);
+  if (duplicateSlave.length > 0) {
+    res.status(409).json({ error: "This MT5 account is already registered with PesaMatrix." });
+    return;
+  }
+
+  const [duplicateApplication] = await db
+    .select({ id: fundingApplicationsTable.id })
+    .from(fundingApplicationsTable)
+    .where(
+      and(
+        eq(fundingApplicationsTable.mt5AccountNumber, normalizedLogin),
+        ne(fundingApplicationsTable.status, "rejected"),
+      ),
+    )
+    .limit(1);
+  if (duplicateApplication && duplicateApplication.id !== app.id) {
+    res.status(409).json({ error: "This MT5 account is already attached to another funding application." });
+    return;
+  }
+
+  const attemptNumber = (app.mt5VerificationAttempts ?? 0) + 1;
+  const result = await verifyMt5InvestorCredentials({
+    brokerName: brokerName.trim(),
+    mt5AccountNumber: normalizedLogin,
+    mt5Server: mt5Server.trim(),
+    investorPassword,
+  });
+
+  await db.insert(fundingVerificationAttemptsTable).values({
+    applicationId: app.id,
+    userId: req.userId!,
+    brokerName: brokerName.trim(),
+    mt5AccountNumber: normalizedLogin,
+    mt5Server: mt5Server.trim(),
+    resultStatus: result.ok ? "verified" : "failed",
+    result: result.reason,
+    metaapiAccountId: result.metaapiAccountId ?? null,
+  });
+
+  const [updated] = await db
+    .update(fundingApplicationsTable)
+    .set({
+      brokerName: brokerName.trim(),
+      mt5AccountNumber: normalizedLogin,
+      mt5Server: mt5Server.trim(),
+      investorPasswordEncrypted: encryptCredential(investorPassword),
+      mt5VerificationStatus: result.ok ? "verified" : "failed",
+      mt5VerificationDate: result.ok ? new Date() : null,
+      mt5VerificationResult: result.reason,
+      mt5VerificationAttempts: attemptNumber,
+      metaapiVerificationAccountId: result.metaapiAccountId ?? null,
+      metaapiVerificationRegion: result.metaapiRegion ?? null,
+      status: result.ok ? "under_review" : "verification_pending",
+    })
+    .where(eq(fundingApplicationsTable.id, app.id))
+    .returning();
+
+  logger.info(
+    { applicationId: app.id, userId: req.userId, attemptNumber, verified: result.ok },
+    "Funding MT5 verification attempt recorded",
+  );
+  res.status(result.ok ? 200 : 422).json({
+    application: serializeFundingApplication(updated),
+    verified: result.ok,
+    message: result.reason,
+  });
 });
 
 // ─── Admin routes ─────────────────────────────────────────────────────────────
@@ -490,7 +610,7 @@ router.get("/admin/funding/applications", authenticate, requireAdmin, async (req
   const [{ total: totalCount }] = await countQuery;
 
   res.json({
-    applications: apps.map((a) => ({ ...a, applicationFee: parseFloat(String(a.applicationFee)) })),
+    applications: apps.map(serializeFundingApplication),
     total: Number(totalCount),
     page: pageNum,
     limit: limitNum,
@@ -504,7 +624,7 @@ router.get("/admin/funding/applications/:id", authenticate, requireAdmin, async 
 
   const [app] = await db.select().from(fundingApplicationsTable).where(eq(fundingApplicationsTable.id, id)).limit(1);
   if (!app) { res.status(404).json({ error: "Application not found" }); return; }
-  res.json({ ...app, applicationFee: parseFloat(String(app.applicationFee)) });
+  res.json(serializeFundingApplication(app));
 });
 
 router.patch("/admin/funding/applications/:id", authenticate, requireAdmin, async (req, res): Promise<void> => {
@@ -513,7 +633,7 @@ router.patch("/admin/funding/applications/:id", authenticate, requireAdmin, asyn
 
   const { status, adminNotes } = req.body as { status?: string; adminNotes?: string };
 
-  const VALID_STATUSES = ["submitted", "under_review", "approved", "rejected", "funded"];
+  const VALID_STATUSES = ["verification_pending", "under_review", "approved", "rejected", "funded"];
 
   const [app] = await db.select().from(fundingApplicationsTable).where(eq(fundingApplicationsTable.id, id)).limit(1);
   if (!app) { res.status(404).json({ error: "Application not found" }); return; }
@@ -522,6 +642,10 @@ router.patch("/admin/funding/applications/:id", authenticate, requireAdmin, asyn
   if (adminNotes !== undefined) updates["adminNotes"] = adminNotes;
   if (status !== undefined) {
     if (!VALID_STATUSES.includes(status)) { res.status(400).json({ error: "Invalid status" }); return; }
+    if (status === "approved" && (app.paymentStatus !== "completed" || app.mt5VerificationStatus !== "verified")) {
+      res.status(400).json({ error: "Application approval requires confirmed payment and successful MT5 verification." });
+      return;
+    }
     updates["status"] = status;
     updates["reviewedAt"] = new Date();
     updates["reviewedBy"] = req.userId;
@@ -549,7 +673,7 @@ router.patch("/admin/funding/applications/:id", authenticate, requireAdmin, asyn
     }
   }
 
-  res.json({ ...updated, applicationFee: parseFloat(String(updated.applicationFee)) });
+  res.json(serializeFundingApplication(updated));
 });
 
 // ─── Admin: Activate funded account → create slave account ──────────────────
@@ -627,6 +751,7 @@ router.get("/admin/funding/export", authenticate, requireAdmin, async (req, res)
   const headers = [
     "ID", "Full Name", "Email", "Phone", "Country", "Trading Experience",
     "Broker", "MT5 Account", "Account Type", "Status", "Payment Status",
+    "MT5 Verification Status", "MT5 Server", "Verification Date", "Verification Result",
     "Application Fee", "MPESA Receipt", "Admin Notes", "Created At",
   ];
 
@@ -642,6 +767,10 @@ router.get("/admin/funding/export", authenticate, requireAdmin, async (req, res)
     a.accountType,
     a.status,
     a.paymentStatus,
+    a.mt5VerificationStatus,
+    a.mt5Server ?? "",
+    a.mt5VerificationDate?.toISOString() ?? "",
+    `"${(a.mt5VerificationResult ?? "").replace(/"/g, '""')}"`,
     parseFloat(String(a.applicationFee)).toFixed(2),
     a.mpesaReceipt ?? "",
     `"${(a.adminNotes ?? "").replace(/"/g, '""')}"`,

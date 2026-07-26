@@ -58,6 +58,11 @@ interface FundingApplication {
   checkoutRequestId: string | null;
   mpesaReceipt: string | null;
   paymentStatus: string;
+  mt5VerificationStatus: string;
+  mt5Server: string | null;
+  mt5VerificationDate: string | null;
+  mt5VerificationResult: string | null;
+  mt5VerificationAttempts: number;
   status: string;
   adminNotes: string | null;
   reviewedAt: string | null;
@@ -76,7 +81,7 @@ interface ApplicationsResponse {
 const STATUS_OPTIONS = [
   { value: "all", label: "All" },
   { value: "pending_payment", label: "Pending Payment" },
-  { value: "submitted", label: "Submitted" },
+  { value: "verification_pending", label: "MT5 Verification Required" },
   { value: "under_review", label: "Under Review" },
   { value: "approved", label: "Approved" },
   { value: "rejected", label: "Rejected" },
@@ -84,7 +89,7 @@ const STATUS_OPTIONS = [
 ];
 
 const ADMIN_STATUS_OPTIONS = [
-  { value: "submitted", label: "Submitted" },
+  { value: "verification_pending", label: "MT5 Verification Required" },
   { value: "under_review", label: "Under Review" },
   { value: "approved", label: "Approved" },
   { value: "rejected", label: "Rejected" },
@@ -328,7 +333,25 @@ function ApplicationDialog({
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Payment Status</p>
-              <p className="font-medium">{app.paymentStatus}</p>
+              <p className={cn("font-medium", app.paymentStatus === "completed" ? "text-green-400" : "text-yellow-400")}>{app.paymentStatus}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">MT5 Verification Status</p>
+              <p className={cn("font-medium", app.mt5VerificationStatus === "verified" ? "text-green-400" : app.mt5VerificationStatus === "failed" ? "text-red-400" : "text-yellow-400")}>
+                {app.mt5VerificationStatus}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">MT5 Server</p>
+              <p className="font-medium">{app.mt5Server ?? "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Verification Date</p>
+              <p>{app.mt5VerificationDate ? new Date(app.mt5VerificationDate).toLocaleString() : "—"}</p>
+            </div>
+            <div className="col-span-2">
+              <p className="text-xs text-muted-foreground">Verification Result</p>
+              <p className={cn("font-medium", app.mt5VerificationStatus === "verified" ? "text-green-400" : "text-red-400")}>{app.mt5VerificationResult ?? "Not verified yet"}</p>
             </div>
             {app.mpesaReceipt && (
               <div>
@@ -348,6 +371,11 @@ function ApplicationDialog({
 
           {/* Admin controls */}
           <div className="border-t border-border pt-4 space-y-3">
+            {status === "approved" && (app.paymentStatus !== "completed" || app.mt5VerificationStatus !== "verified") && (
+              <div className="rounded-lg bg-yellow-600/10 border border-yellow-600/30 p-3 text-sm text-yellow-300">
+                Approval is locked until payment is confirmed and MT5 verification succeeds.
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label>Update Status</Label>
               <Select value={status} onValueChange={setStatus}>
@@ -377,7 +405,7 @@ function ApplicationDialog({
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button
             className="bg-blue-600 hover:bg-blue-700 text-white"
-            disabled={updateMutation.isPending}
+            disabled={updateMutation.isPending || (status === "approved" && (app.paymentStatus !== "completed" || app.mt5VerificationStatus !== "verified"))}
             onClick={() => updateMutation.mutate({ status: status !== app.status ? status : undefined, adminNotes })}
           >
             {updateMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}

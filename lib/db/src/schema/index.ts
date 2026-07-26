@@ -27,3 +27,4 @@ export * from "./faqs";
 export * from "./customerCareSettings";
 export * from "./fundingSettings";
 export * from "./fundingApplications";
+export * from "./fundingVerificationAttempts";
