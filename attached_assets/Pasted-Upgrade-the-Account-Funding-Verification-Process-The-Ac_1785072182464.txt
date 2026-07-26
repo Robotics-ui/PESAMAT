@@ -1,0 +1,59 @@
+Upgrade the Account Funding Verification Process
+The Account Funding process must have two stages.
+Stage 1: Application & Payment
+User completes the funding application.
+User pays the application fee via M-Pesa STK Push.
+After successful payment, mark the application as Payment Confirmed.
+Only after payment is confirmed should the user proceed to account verification.
+Stage 2: MT5 Account Verification
+Display a second form requesting:
+Broker Name
+MT5 Account Number
+MT5 Server
+Investor Password (Read-Only Password)
+Do NOT ask for the trader's Master Password. The Investor Password is sufficient to verify the account and view its trading data without allowing trades.
+When the user submits these details:
+Connect using the existing MetaApi integration.
+Verify:
+The MT5 account exists.
+The server is valid.
+The investor password is correct.
+The account can be accessed successfully.
+If verification succeeds:
+Mark the application as Verified.
+Display "MT5 Account Successfully Verified."
+Move the application to the admin review queue.
+If verification fails:
+Display the reason (invalid account number, wrong server, incorrect investor password, connection failed, etc.).
+Allow the user to update the details and retry.
+Do not allow admin approval until verification passes.
+Admin Dashboard
+Show:
+Payment Status
+MT5 Verification Status
+Broker
+Account Number
+Server
+Verification Date
+Verification Result
+Application Status
+The Admin can only approve applications whose:
+Payment Status = Paid
+MT5 Verification = Verified
+Otherwise, disable the Approve button.
+Security
+Encrypt the Investor Password before storing it.
+Never display the Investor Password after it is saved.
+Log every verification attempt.
+Allow the user to update the investor password if verification fails.
+Future Workflow
+When the application is approved:
+Convert the verified MT5 account into a funded account.
+When funding is completed, convert it into an active slave account using the existing copy-trading system.
+One additional recommendation: after MetaApi verifies the account, also validate that it meets your funding requirements, such as:
+MT5 account type (not MT4 if you only support MT5).
+The broker is on your supported brokers list.
+The account is a real account (or demo if your promotion allows demos).
+The account isn't already registered by another PesaMatrix user.
+The account has never previously received funding from PesaMatrix.
+These extra checks help prevent duplicate or fraudulent funding applications.

@@ -14,3 +14,4 @@
 - [Slave vs Master credential types](slave-trading-password.md) — slaves need Trading Password (CopyFactory writes trades to them); masters need Investor Password (MetaApi only reads from them). Credential encryption is AES-256-GCM with v2: prefix; legacy base64 still decryptable for old master records.
 - [OpenAPI enum completeness](openapi-enum-completeness.md) — MasterAccount.status must include "active" and "suspended"; Subscription.status must include "free_trial". Missing values cause TS2367 errors in the frontend after codegen.
 - [CopyFactory API quirks](copyfactory-api-quirks.md) — two critical MetaApi CopyFactory gotchas: role field name and expired TLS cert workaround.
+- [Imported project setup](imported-project-setup.md) — fresh imports may need the existing development schema pushed before API startup can seed successfully.

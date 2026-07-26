@@ -718,7 +718,7 @@ router.post("/admin/funding/applications/:id/activate", authenticate, requireAdm
   const [slave] = await db.insert(slaveAccountsTable).values({
     userId: app.userId,
     mt5Login: login,
-    broker: app.brokerName,
+    broker: app.brokerName ?? "Unknown",
     server: server.trim(),
     tradingPasswordEncrypted: encryptCredential(tradingPassword),
     platform: "mt5",
@@ -762,7 +762,7 @@ router.get("/admin/funding/export", authenticate, requireAdmin, async (req, res)
     a.phone,
     `"${a.country.replace(/"/g, '""')}"`,
     `"${a.tradingExperience.replace(/"/g, '""')}"`,
-    `"${a.brokerName.replace(/"/g, '""')}"`,
+    `"${(a.brokerName ?? "").replace(/"/g, '""')}"`,
     a.mt5AccountNumber ?? "",
     a.accountType,
     a.status,
