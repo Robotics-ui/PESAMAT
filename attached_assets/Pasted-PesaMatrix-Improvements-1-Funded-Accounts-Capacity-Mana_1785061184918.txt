@@ -1,0 +1,40 @@
+PesaMatrix Improvements
+1. Funded Accounts Capacity Management
+The system currently supports up to 2,000 active slave accounts. Funded accounts are promotional accounts and do not count toward this limit until they are converted into active slave accounts.
+Implement the following:
+Keep funded applications separate from slave accounts.
+When a funded account is approved but not yet activated for copy trading, do not count it as an active slave account.
+When a funded account is converted into a slave account, automatically:
+Create the slave account.
+Include it in the active slave account count.
+Reduce the remaining platform capacity.
+Add a dashboard widget showing:
+Total platform capacity (2,000)
+Active slave accounts
+Remaining capacity
+Capacity percentage used
+Display warning alerts when capacity reaches:
+80%
+90%
+100%
+Prevent activation of new funded accounts if activating them would exceed the 2,000 active slave account limit.
+2. Account Funding Settings
+In the Admin panel:
+Allow the admin to set the application fee.
+Allow the admin to set the number of funding slots available.
+When an application is approved, automatically reduce the remaining funding slots.
+Display:
+Total funding slots
+Approved funded accounts
+Remaining funding slots
+The Terms & Conditions page must automatically display the same application fee and available funding slots configured by the admin. These values should update dynamically whenever the admin changes them.
+3. Password Improvements
+Improve the login page by adding:
+A Show/Hide Password (eye icon) on all password fields.
+A Forgot Password feature that:
+Allows users to reset their password using their registered email.
+Sends a secure password reset link or one-time code.
+Allows users to create a new password after verification.
+Invalidates the reset token after use or expiry.
+Logs all password reset requests for security.
+Implement these features using the existing React frontend, Express backend, PostgreSQL/Drizzle ORM, and follow the current PesaMatrix UI and authentication architecture.
