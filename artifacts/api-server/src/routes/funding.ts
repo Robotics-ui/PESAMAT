@@ -405,6 +405,100 @@ router.get("/funding/applications/:id/payment-verify", authenticate, async (req,
   }
 });
 
+// Cancel a failed-payment application so the user can start fresh
+router.post("/funding/applications/:id/cancel", authenticate, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params["id"]), 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [app] = await db
+    .select()
+    .from(fundingApplicationsTable)
+    .where(and(eq(fundingApplicationsTable.id, id), eq(fundingApplicationsTable.userId, req.userId!)))
+    .limit(1);
+
+  if (!app) { res.status(404).json({ error: "Application not found" }); return; }
+
+  if (app.status !== "pending_payment") {
+    res.status(400).json({ error: "Only applications awaiting payment can be cancelled" });
+    return;
+  }
+
+  await db
+    .update(fundingApplicationsTable)
+    .set({ status: "rejected", adminNotes: "Cancelled by user — payment not completed" })
+    .where(eq(fundingApplicationsTable.id, app.id));
+
+  res.json({ success: true });
+});
+
+// Retry STK push for a failed-payment application
+router.post("/funding/applications/:id/retry-payment", authenticate, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params["id"]), 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [app] = await db
+    .select()
+    .from(fundingApplicationsTable)
+    .where(and(eq(fundingApplicationsTable.id, id), eq(fundingApplicationsTable.userId, req.userId!)))
+    .limit(1);
+
+  if (!app) { res.status(404).json({ error: "Application not found" }); return; }
+
+  if (app.status !== "pending_payment") {
+    res.status(400).json({ error: "Only applications awaiting payment can be retried" });
+    return;
+  }
+  if (app.paymentStatus !== "failed") {
+    res.status(400).json({ error: "Payment has not failed — no retry needed" });
+    return;
+  }
+
+  const stkResult = await initiateStk(
+    app.phone,
+    parseFloat(String(app.applicationFee)),
+    "PESAMATRIX-FUNDING",
+    "Account Funding Application Fee"
+  );
+
+  if ("error" in stkResult) {
+    res.status(500).json({ error: stkResult.error });
+    return;
+  }
+
+  if (stkResult.demo) {
+    const demoReceipt = `DEMO${Date.now()}`;
+    await db
+      .update(fundingApplicationsTable)
+      .set({
+        checkoutRequestId: stkResult.checkoutRequestId,
+        mpesaReceipt: demoReceipt,
+        paymentStatus: "completed",
+        status: "verification_pending",
+      })
+      .where(eq(fundingApplicationsTable.id, app.id));
+
+    await db.insert(paymentsTable).values({
+      userId: req.userId!,
+      phone: app.phone,
+      amount: String(app.applicationFee),
+      status: "completed",
+      days: 0,
+      mpesaReceipt: demoReceipt,
+      checkoutRequestId: `funding-${stkResult.checkoutRequestId}`,
+    }).onConflictDoNothing();
+
+    res.json({ applicationId: app.id, checkoutRequestId: stkResult.checkoutRequestId, demo: true, status: "verification_pending" });
+    return;
+  }
+
+  await db
+    .update(fundingApplicationsTable)
+    .set({ checkoutRequestId: stkResult.checkoutRequestId, paymentStatus: "pending" })
+    .where(eq(fundingApplicationsTable.id, app.id));
+
+  res.json({ applicationId: app.id, checkoutRequestId: stkResult.checkoutRequestId, demo: false, status: "pending_payment" });
+});
+
 router.post("/funding/applications/:id/verify-mt5", authenticate, async (req, res): Promise<void> => {
   const id = parseInt(String(req.params["id"]), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }

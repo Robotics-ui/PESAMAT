@@ -94,7 +94,7 @@ export default function AccountFundingPage() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
 
-  const [view, setView] = useState<"intro" | "form" | "payment" | "done">("intro");
+  const [view, setView] = useState<"intro" | "form" | "payment" | "failed" | "done">("intro");
   const [form, setForm] = useState(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [pendingAppId, setPendingAppId] = useState<number | null>(null);
@@ -107,6 +107,55 @@ export default function AccountFundingPage() {
   });
   const [verificationSubmitting, setVerificationSubmitting] = useState(false);
   const [verificationError, setVerificationError] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+
+  const handleRetryPayment = async (appId: number) => {
+    setRetrying(true);
+    try {
+      const res = await fetch(`/api/funding/applications/${appId}/retry-payment`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = (await res.json()) as { applicationId?: number; demo?: boolean; status?: string; error?: string };
+      if (!res.ok) {
+        toast({ title: "Retry failed", description: data.error ?? "Could not resend payment request.", variant: "destructive" });
+        return;
+      }
+      if (data.status === "verification_pending" || data.demo) {
+        setView("done");
+        setPendingAppId(null);
+        refetchApps();
+      } else {
+        setPendingAppId(appId);
+        setView("payment");
+        refetchApps();
+      }
+    } finally {
+      setRetrying(false);
+    }
+  };
+
+  const handleCancelApplication = async (appId: number) => {
+    setCancelling(true);
+    try {
+      const res = await fetch(`/api/funding/applications/${appId}/cancel`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const data = (await res.json()) as { error?: string };
+        toast({ title: "Cancel failed", description: data.error ?? "Could not cancel application.", variant: "destructive" });
+        return;
+      }
+      setPendingAppId(null);
+      setView("intro");
+      refetchApps();
+      toast({ title: "Application cancelled", description: "You can submit a new application whenever you're ready." });
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   useEffect(() => {
     if (!authLoading && !token) navigate("/login");
@@ -134,9 +183,15 @@ export default function AccountFundingPage() {
     enabled: !!token,
   });
 
-  // Active application = not rejected/failed
-  const activeApp = myApps?.find((a) => !["rejected"].includes(a.status));
-  const hasActive = !!activeApp;
+  // A failed-payment app: awaiting payment but the STK push was declined/timed out
+  const failedPaymentApp = myApps?.find(
+    (a) => a.status === "pending_payment" && a.paymentStatus === "failed"
+  );
+  // Active application = not rejected and not a failed-payment one (those are handled separately)
+  const activeApp = myApps?.find(
+    (a) => !["rejected"].includes(a.status) && !(a.status === "pending_payment" && a.paymentStatus === "failed")
+  );
+  const hasActive = !!activeApp || !!failedPaymentApp;
 
   // Poll payment status while pending
   const pollPaymentStatus = useCallback(async () => {
@@ -152,9 +207,7 @@ export default function AccountFundingPage() {
         setPendingAppId(null);
         refetchApps();
       } else if (data.paymentStatus === "failed") {
-        toast({ title: "Payment failed", description: "The M-Pesa payment was not completed.", variant: "destructive" });
-        setView("intro");
-        setPendingAppId(null);
+        setView("failed");
         refetchApps();
       }
     } catch {
@@ -224,6 +277,50 @@ export default function AccountFundingPage() {
           </h1>
           <p className="text-muted-foreground mt-1">Apply for a funded trading account through the PesaMatrix program.</p>
         </div>
+
+        {/* Failed-payment application — retry or cancel */}
+        {(failedPaymentApp || view === "failed") && (() => {
+          const appId = failedPaymentApp?.id ?? pendingAppId;
+          if (!appId) return null;
+          return (
+            <Card className="border-red-600/30 bg-red-600/5">
+              <CardContent className="pt-6 pb-6 space-y-4">
+                <div className="flex items-start gap-3">
+                  <XCircle className="h-6 w-6 text-red-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-foreground">Payment Not Completed</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      The M-Pesa payment request was declined, cancelled, or timed out.
+                      You can resend the prompt to try again, or cancel this application and start fresh later.
+                    </p>
+                    {failedPaymentApp && (
+                      <p className="text-xs text-muted-foreground mt-1">Application #{failedPaymentApp.id}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Button
+                    className="bg-blue-600 hover:bg-blue-700 text-white flex-1"
+                    disabled={retrying || cancelling}
+                    onClick={() => handleRetryPayment(appId)}
+                  >
+                    {retrying && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                    {retrying ? "Sending request…" : "Retry Payment"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="flex-1 border-red-600/40 text-red-400 hover:bg-red-600/10 hover:text-red-300"
+                    disabled={retrying || cancelling}
+                    onClick={() => handleCancelApplication(appId)}
+                  >
+                    {cancelling && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                    {cancelling ? "Cancelling…" : "Cancel Application"}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })()}
 
         {/* Existing active application */}
         {hasActive && activeApp && (
@@ -490,7 +587,7 @@ export default function AccountFundingPage() {
         )}
 
         {/* Payment polling */}
-        {view === "payment" && (
+        {view === "payment" && !failedPaymentApp && (
           <Card className="border-blue-600/30 bg-blue-600/5">
             <CardContent className="pt-8 pb-8 flex flex-col items-center gap-4 text-center">
               <Loader2 className="h-10 w-10 animate-spin text-blue-500" />
