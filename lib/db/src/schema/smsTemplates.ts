@@ -7,6 +7,7 @@ export const SMS_EVENT_TYPES = [
   "subscription_expiring",
   "subscription_expired",
   "payment_received",
+  "payment_failed",
   "master_account_approved",
   "account_suspended",
   "announcement",

@@ -1,11 +1,11 @@
 import { Router } from "express";
 import { eq, desc, and } from "drizzle-orm";
-import { db, paymentsTable, subscriptionsTable, adminSettingsTable, bindingsTable, slaveAccountsTable, usersTable, strategiesTable } from "@workspace/db";
+import { db, paymentsTable, subscriptionsTable, adminSettingsTable, bindingsTable, slaveAccountsTable, usersTable, strategiesTable, fundingApplicationsTable } from "@workspace/db";
 import { InitiatePaymentBody } from "@workspace/api-zod";
 import { authenticate } from "../middlewares/authenticate";
 import { logger } from "../lib/logger";
 import { syncSlaveSubscriberToCopyFactory, ensureSlaveSubscriberRole } from "../lib/metaapi";
-import { notifyPaymentReceived, notifySubscriptionActivated } from "../lib/smsNotifier";
+import { notifyPaymentReceived, notifySubscriptionActivated, notifyPaymentFailed, notifyFundingPaymentReceived } from "../lib/smsNotifier";
 
 const router = Router();
 
@@ -111,8 +111,9 @@ router.post("/payments", authenticate, async (req, res): Promise<void> => {
     const [userForSms] = await db.select().from(usersTable).where(eq(usersTable.id, req.userId!)).limit(1);
     if (userForSms?.phone) {
       const [sub] = await db.select().from(subscriptionsTable).where(eq(subscriptionsTable.userId, req.userId!)).limit(1);
-      notifyPaymentReceived({ userId: req.userId!, phone: userForSms.phone, name: userForSms.name, amount: amount.toFixed(2), receipt: payment.mpesaReceipt ?? "DEMO" });
-      if (sub?.endDate) notifySubscriptionActivated({ userId: req.userId!, phone: userForSms.phone, name: userForSms.name, endDate: sub.endDate.toDateString() });
+      const endDateStr = sub?.endDate?.toDateString() ?? "";
+      notifyPaymentReceived({ userId: req.userId!, phone: userForSms.phone, name: userForSms.name, amount: amount.toFixed(2), receipt: payment.mpesaReceipt ?? "DEMO", endDate: endDateStr });
+      if (sub?.endDate) notifySubscriptionActivated({ userId: req.userId!, phone: userForSms.phone, name: userForSms.name, endDate: endDateStr });
     }
 
     res.json({
@@ -288,6 +289,78 @@ router.post("/payments/callback", async (req, res): Promise<void> => {
       .where(eq(paymentsTable.checkoutRequestId, CheckoutRequestID));
 
     if (!payment) {
+      // Not a subscription payment — check if it's a funding application payment
+      const [fundingApp] = await db
+        .select()
+        .from(fundingApplicationsTable)
+        .where(eq(fundingApplicationsTable.checkoutRequestId, CheckoutRequestID))
+        .limit(1);
+
+      if (fundingApp) {
+        if (fundingApp.paymentStatus !== "pending") {
+          logger.info({ checkoutRequestId: CheckoutRequestID }, "Funding callback ignored — already processed");
+          res.json({ message: "OK" });
+          return;
+        }
+
+        const receiptItem = CallbackMetadata?.Item?.find((i: { Name: string }) => i.Name === "MpesaReceiptNumber");
+        const mpesaReceipt = receiptItem?.Value as string | undefined;
+
+        if (ResultCode === 0) {
+          const [updatedApp] = await db
+            .update(fundingApplicationsTable)
+            .set({ paymentStatus: "completed", status: "submitted", mpesaReceipt: mpesaReceipt ?? null })
+            .where(eq(fundingApplicationsTable.id, fundingApp.id))
+            .returning();
+
+          // Record in payments table for audit trail
+          await db.insert(paymentsTable).values({
+            userId: fundingApp.userId,
+            phone: fundingApp.phone,
+            amount: String(fundingApp.applicationFee),
+            status: "completed",
+            days: 0,
+            mpesaReceipt: mpesaReceipt ?? null,
+            checkoutRequestId: `funding-${CheckoutRequestID}`,
+          }).onConflictDoNothing();
+
+          // Notify user: funding payment received + application submitted
+          const [fundingUser] = await db.select().from(usersTable).where(eq(usersTable.id, fundingApp.userId)).limit(1);
+          if (fundingUser?.phone) {
+            notifyFundingPaymentReceived({
+              userId: fundingApp.userId,
+              phone: fundingUser.phone,
+              name: fundingUser.name,
+              amount: parseFloat(String(fundingApp.applicationFee)).toFixed(2),
+              receipt: mpesaReceipt ?? "",
+              appId: String(fundingApp.id),
+            });
+          }
+
+          // Notify admin of new application
+          const [adminUser] = await db.select().from(usersTable).where(eq(usersTable.role, "admin")).limit(1);
+          if (adminUser?.phone && adminUser.phone !== "254700000000") {
+            notifyPaymentReceived({
+              userId: adminUser.id,
+              phone: adminUser.phone,
+              name: "Admin",
+              amount: parseFloat(String(fundingApp.applicationFee)).toFixed(2),
+              receipt: mpesaReceipt ?? "",
+              endDate: `Funding App #${updatedApp.id} — ${fundingApp.fullName}`,
+            });
+          }
+
+          logger.info({ fundingAppId: fundingApp.id, mpesaReceipt }, "Funding application payment confirmed via callback");
+        } else {
+          await db.update(fundingApplicationsTable)
+            .set({ paymentStatus: "failed" })
+            .where(eq(fundingApplicationsTable.id, fundingApp.id));
+          logger.info({ fundingAppId: fundingApp.id, ResultCode }, "Funding application payment failed via callback");
+        }
+      } else {
+        logger.warn({ checkoutRequestId: CheckoutRequestID }, "MPESA callback: no matching payment or funding application found");
+      }
+
       res.json({ message: "OK" });
       return;
     }
@@ -318,11 +391,17 @@ router.post("/payments/callback", async (req, res): Promise<void> => {
       const [cbUser] = await db.select().from(usersTable).where(eq(usersTable.id, payment.userId)).limit(1);
       if (cbUser?.phone) {
         const [cbSub] = await db.select().from(subscriptionsTable).where(eq(subscriptionsTable.userId, payment.userId)).limit(1);
-        notifyPaymentReceived({ userId: payment.userId, phone: cbUser.phone, name: cbUser.name, amount: parseFloat(payment.amount as string).toFixed(2), receipt: mpesaReceipt ?? "" });
-        if (cbSub?.endDate) notifySubscriptionActivated({ userId: payment.userId, phone: cbUser.phone, name: cbUser.name, endDate: cbSub.endDate.toDateString() });
+        const cbEndDate = cbSub?.endDate?.toDateString() ?? "";
+        notifyPaymentReceived({ userId: payment.userId, phone: cbUser.phone, name: cbUser.name, amount: parseFloat(payment.amount as string).toFixed(2), receipt: mpesaReceipt ?? "", endDate: cbEndDate });
+        if (cbSub?.endDate) notifySubscriptionActivated({ userId: payment.userId, phone: cbUser.phone, name: cbUser.name, endDate: cbEndDate });
       }
     } else {
       await db.update(paymentsTable).set({ status: "failed" }).where(eq(paymentsTable.id, payment.id));
+      // SMS: notify user of failed payment
+      const [failUser] = await db.select().from(usersTable).where(eq(usersTable.id, payment.userId)).limit(1);
+      if (failUser?.phone) {
+        notifyPaymentFailed({ userId: payment.userId, phone: failUser.phone, name: failUser.name, amount: parseFloat(payment.amount as string).toFixed(2) });
+      }
     }
 
     res.json({ message: "OK" });
@@ -429,12 +508,18 @@ router.post("/payments/:checkoutRequestId/verify", authenticate, async (req, res
       const [verifyUser] = await db.select().from(usersTable).where(eq(usersTable.id, payment.userId)).limit(1);
       if (verifyUser?.phone) {
         const [verifySub] = await db.select().from(subscriptionsTable).where(eq(subscriptionsTable.userId, payment.userId)).limit(1);
-        notifyPaymentReceived({ userId: payment.userId, phone: verifyUser.phone, name: verifyUser.name, amount: parseFloat(payment.amount as string).toFixed(2), receipt: "" });
-        if (verifySub?.endDate) notifySubscriptionActivated({ userId: payment.userId, phone: verifyUser.phone, name: verifyUser.name, endDate: verifySub.endDate.toDateString() });
+        const verifyEndDate = verifySub?.endDate?.toDateString() ?? "";
+        notifyPaymentReceived({ userId: payment.userId, phone: verifyUser.phone, name: verifyUser.name, amount: parseFloat(payment.amount as string).toFixed(2), receipt: "", endDate: verifyEndDate });
+        if (verifySub?.endDate) notifySubscriptionActivated({ userId: payment.userId, phone: verifyUser.phone, name: verifyUser.name, endDate: verifyEndDate });
       }
       res.json({ status: "completed", mpesaReceipt: null, amount: parseFloat(payment.amount as string) });
     } else if (resultCode !== null && resultCode !== 0) {
       await db.update(paymentsTable).set({ status: "failed" }).where(eq(paymentsTable.id, payment.id));
+      // SMS: notify user of failed payment
+      const [failVerifyUser] = await db.select().from(usersTable).where(eq(usersTable.id, payment.userId)).limit(1);
+      if (failVerifyUser?.phone) {
+        notifyPaymentFailed({ userId: payment.userId, phone: failVerifyUser.phone, name: failVerifyUser.name, amount: parseFloat(payment.amount as string).toFixed(2) });
+      }
       res.json({ status: "failed", mpesaReceipt: null, amount: parseFloat(payment.amount as string) });
     } else {
       res.json({ status: "pending", mpesaReceipt: null, amount: parseFloat(payment.amount as string) });

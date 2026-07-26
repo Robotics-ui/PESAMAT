@@ -498,12 +498,15 @@ export default function AccountFundingPage() {
             <CardContent className="pt-8 pb-8 flex flex-col items-center gap-4 text-center">
               <Loader2 className="h-10 w-10 animate-spin text-blue-500" />
               <div>
-                <p className="font-semibold text-foreground">Check your phone for the M-Pesa prompt</p>
+                <p className="font-semibold text-foreground">An M-Pesa payment request has been sent to your phone</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Enter your M-Pesa PIN to pay <strong className="text-foreground">KES {settings?.applicationFee?.toLocaleString()}</strong>. We will confirm automatically.
+                  Please enter your M-Pesa PIN to pay <strong className="text-foreground">KES {settings?.applicationFee?.toLocaleString()}</strong> to complete the payment. We will update this page automatically once payment is confirmed.
                 </p>
               </div>
-              <p className="text-xs text-muted-foreground">Waiting for payment confirmation...</p>
+              <div className="flex flex-col items-center gap-1">
+                <p className="text-xs text-muted-foreground">Waiting for payment confirmation...</p>
+                <p className="text-xs text-muted-foreground">Did not receive the prompt? Check your M-Pesa balance and network, then try again.</p>
+              </div>
             </CardContent>
           </Card>
         )}

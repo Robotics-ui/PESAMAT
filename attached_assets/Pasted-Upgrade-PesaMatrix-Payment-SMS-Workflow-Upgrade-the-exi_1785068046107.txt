@@ -1,0 +1,55 @@
+Upgrade PesaMatrix Payment & SMS Workflow
+Upgrade the existing payment and Bulk SMS system to fully automate M-Pesa payments and notifications.
+1. Funding Account Payment
+After a user completes the Account Funding Application form and clicks Submit & Pay:
+Validate all required fields.
+Save the application as Pending Payment.
+Automatically initiate an M-Pesa STK Push to the registered phone number.
+The user should complete payment directly from the STK prompt.
+Do not approve or submit the application until payment is successfully confirmed via the Daraja callback.
+If payment fails or is cancelled, keep the application in Pending Payment and allow the user to retry.
+2. Payment Confirmation
+After a successful M-Pesa callback:
+Mark the payment as Completed.
+Update the application status to Submitted.
+Generate a payment receipt.
+Record the transaction in the Payments table.
+Notify the Admin of the new application.
+3. Bulk SMS Integration (Upgrade Existing Module)
+The Bulk SMS module already exists. Upgrade it to send automatic transactional SMS after successful payments.
+The SMS must be sent to the registered phone number used during registration.
+Examples:
+Daily Subscription
+Your PesaMatrix Daily Subscription payment of KES XXX has been received successfully. Your subscription is now active. Thank you for choosing PesaMatrix.
+Monthly Subscription
+Your PesaMatrix Monthly Subscription payment of KES XXX has been received successfully. Your subscription is now active until [Expiry Date].
+Account Funding Application
+Your PesaMatrix Account Funding application fee of KES XXX has been received successfully. Your application has been submitted and is under review. We will notify you once it has been reviewed.
+4. Event-Based SMS
+Automatically send SMS for:
+Daily subscription payment successful.
+Weekly subscription payment successful.
+Monthly subscription payment successful.
+Funding application payment successful.
+Funding application approved.
+Funding application rejected.
+Funding account activated.
+Subscription expiry reminders.
+Failed payment notifications.
+5. Backend Requirements
+Reuse the existing Bulk SMS service.
+Create a reusable notification service so all modules can call:
+sendSubscriptionSMS()
+sendFundingApplicationSMS()
+sendFundingApprovalSMS()
+sendFundingRejectionSMS()
+Messages must be sent only after successful M-Pesa callback confirmation.
+Prevent duplicate SMS if the callback is received more than once.
+Log every SMS in the existing SMS logs/history for auditing.
+6. Frontend
+After clicking Submit & Pay:
+Display a loading screen saying:
+"An M-Pesa payment request has been sent to your phone. Please complete the payment to continue."
+Automatically update the page once payment is confirmed.
+Display success or failure messages based on the payment result.
+Important: Integrate this with the existing Daraja LIVE API, existing Payments module, and existing Bulk SMS module. Do not create a separate SMS system. Extend the current architecture and ensure notifications are sent automatically after successful payment confirmation.

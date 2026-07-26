@@ -356,7 +356,11 @@ export async function seedDefaultTemplates() {
     },
     {
       eventType: "payment_received",
-      template: "Hi {{name}}, payment of KES {{amount}} received (Ref: {{receipt}}). Your subscription is now active.",
+      template: "Hi {{name}}, your PESAMATRIX subscription payment of KES {{amount}} has been received successfully (Ref: {{receipt}}). Your subscription is now active until {{endDate}}. Thank you for choosing PESAMATRIX.",
+    },
+    {
+      eventType: "payment_failed",
+      template: "Hi {{name}}, your PESAMATRIX payment of KES {{amount}} was not completed. Please try again or contact support if you were charged.",
     },
     {
       eventType: "master_account_approved",
@@ -373,6 +377,34 @@ export async function seedDefaultTemplates() {
     {
       eventType: "broadcast",
       template: "{{message}}",
+    },
+    {
+      eventType: "free_trial_activated",
+      template: "Hi {{name}}, your PESAMATRIX 2-day free trial is now active until {{endDate}}. Add a slave account to start copy trading!",
+    },
+    {
+      eventType: "free_trial_expired",
+      template: "Hi {{name}}, your PESAMATRIX free trial has ended. Subscribe via M-Pesa to continue copy trading.",
+    },
+    {
+      eventType: "referral_reward",
+      template: "Hi {{name}}, you have earned {{rewardDays}} extra trading day(s) from a successful referral. Keep sharing!",
+    },
+    {
+      eventType: "funding_application_submitted",
+      template: "Hi {{name}}, your PESAMATRIX Account Funding application fee of KES {{amount}} has been received successfully (Ref: {{receipt}}). Your application has been submitted and is under review. We will notify you once it has been reviewed.",
+    },
+    {
+      eventType: "funding_application_approved",
+      template: "Hi {{name}}, congratulations! Your PESAMATRIX Account Funding application has been approved. Our team will contact you shortly to set up your funded account.",
+    },
+    {
+      eventType: "funding_application_rejected",
+      template: "Hi {{name}}, your PESAMATRIX Account Funding application was not approved at this time. Contact support for more details.",
+    },
+    {
+      eventType: "funding_application_funded",
+      template: "Hi {{name}}, your PESAMATRIX funded trading account is now active! Check the app for details on your account setup.",
     },
   ];
 

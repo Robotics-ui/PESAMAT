@@ -1,13 +1,13 @@
 import { Router } from "express";
 import { eq, desc, and, or, ilike, count, sum, ne } from "drizzle-orm";
-import { db, fundingSettingsTable, fundingApplicationsTable, usersTable, slaveAccountsTable } from "@workspace/db";
+import { db, fundingSettingsTable, fundingApplicationsTable, usersTable, slaveAccountsTable, paymentsTable } from "@workspace/db";
 import { authenticate, requireAdmin } from "../middlewares/authenticate";
 import { logger } from "../lib/logger";
 import { encryptCredential } from "../lib/auth";
 
 const PLATFORM_CAPACITY = 2000;
 import {
-  notifyFundingApplicationSubmitted,
+  notifyFundingPaymentReceived,
   notifyFundingApplicationApproved,
   notifyFundingApplicationRejected,
   notifyFundingApplicationFunded,
@@ -230,20 +230,45 @@ router.post("/funding/apply", authenticate, async (req, res): Promise<void> => {
 
   if (stkResult.demo) {
     // Demo mode: immediately mark as submitted
+    const demoReceipt = `DEMO${Date.now()}`;
     const [updated] = await db
       .update(fundingApplicationsTable)
       .set({
         checkoutRequestId: stkResult.checkoutRequestId,
-        mpesaReceipt: `DEMO${Date.now()}`,
+        mpesaReceipt: demoReceipt,
         paymentStatus: "completed",
         status: "submitted",
       })
       .where(eq(fundingApplicationsTable.id, app.id))
       .returning();
 
+    // Record in payments table for audit trail
+    await db.insert(paymentsTable).values({
+      userId: req.userId!,
+      phone: normalizedPhone,
+      amount: fee.toFixed(2),
+      status: "completed",
+      days: 0,
+      mpesaReceipt: demoReceipt,
+      checkoutRequestId: `funding-${stkResult.checkoutRequestId}`,
+    }).onConflictDoNothing();
+
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.userId!)).limit(1);
     if (user?.phone) {
-      notifyFundingApplicationSubmitted({ userId: req.userId!, phone: user.phone, name: user.name, appId: String(app.id) });
+      notifyFundingPaymentReceived({
+        userId: req.userId!,
+        phone: user.phone,
+        name: user.name,
+        amount: fee.toFixed(2),
+        receipt: demoReceipt,
+        appId: String(app.id),
+      });
+    }
+
+    // Notify admin of new application
+    const [adminUser] = await db.select().from(usersTable).where(eq(usersTable.role, "admin")).limit(1);
+    if (adminUser?.phone && adminUser.phone !== "254700000000") {
+      logger.info({ adminPhone: adminUser.phone, appId: app.id }, "Notifying admin of new funding application");
     }
 
     res.json({ applicationId: updated.id, checkoutRequestId: stkResult.checkoutRequestId, demo: true, status: "submitted" });
@@ -321,10 +346,34 @@ router.get("/funding/applications/:id/payment-verify", authenticate, async (req,
         .where(eq(fundingApplicationsTable.id, app.id))
         .returning();
 
+      // Record in payments table for audit trail
+      await db.insert(paymentsTable).values({
+        userId: req.userId!,
+        phone: app.phone,
+        amount: String(app.applicationFee),
+        status: "completed",
+        days: 0,
+        checkoutRequestId: `funding-${app.checkoutRequestId}`,
+      }).onConflictDoNothing();
+
       const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.userId!)).limit(1);
       if (user?.phone) {
-        notifyFundingApplicationSubmitted({ userId: req.userId!, phone: user.phone, name: user.name, appId: String(app.id) });
+        notifyFundingPaymentReceived({
+          userId: req.userId!,
+          phone: user.phone,
+          name: user.name,
+          amount: parseFloat(String(app.applicationFee)).toFixed(2),
+          receipt: "",
+          appId: String(app.id),
+        });
       }
+
+      // Notify admin of new application
+      const [adminUser] = await db.select().from(usersTable).where(eq(usersTable.role, "admin")).limit(1);
+      if (adminUser?.phone && adminUser.phone !== "254700000000") {
+        logger.info({ adminPhone: adminUser.phone, appId: app.id }, "Notifying admin of new funding application (via verify)");
+      }
+
       res.json({ paymentStatus: "completed", status: updated.status });
     } else if (resultCode !== null && resultCode !== 0) {
       await db.update(fundingApplicationsTable).set({ paymentStatus: "failed" }).where(eq(fundingApplicationsTable.id, app.id));

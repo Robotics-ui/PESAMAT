@@ -41,13 +41,37 @@ export function notifySubscriptionExpired(opts: { userId: number; phone: string;
   );
 }
 
-export function notifyPaymentReceived(opts: { userId: number; phone: string; name: string; amount: string; receipt: string }) {
+export function notifyPaymentReceived(opts: { userId: number; phone: string; name: string; amount: string; receipt: string; endDate?: string }) {
   fire(() =>
     enqueueEventSms({
       userId: opts.userId,
       phone: opts.phone,
       eventType: "payment_received",
-      vars: { name: opts.name, amount: opts.amount, receipt: opts.receipt },
+      vars: { name: opts.name, amount: opts.amount, receipt: opts.receipt, endDate: opts.endDate ?? "" },
+      preferenceKey: "subscriptionAlerts",
+    }),
+  );
+}
+
+export function notifyPaymentFailed(opts: { userId: number; phone: string; name: string; amount: string }) {
+  fire(() =>
+    enqueueEventSms({
+      userId: opts.userId,
+      phone: opts.phone,
+      eventType: "payment_failed",
+      vars: { name: opts.name, amount: opts.amount },
+      preferenceKey: "subscriptionAlerts",
+    }),
+  );
+}
+
+export function notifyFundingPaymentReceived(opts: { userId: number; phone: string; name: string; amount: string; receipt: string; appId: string }) {
+  fire(() =>
+    enqueueEventSms({
+      userId: opts.userId,
+      phone: opts.phone,
+      eventType: "funding_application_submitted",
+      vars: { name: opts.name, amount: opts.amount, receipt: opts.receipt, appId: opts.appId },
       preferenceKey: "subscriptionAlerts",
     }),
   );
