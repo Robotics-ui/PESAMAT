@@ -287,6 +287,7 @@ export default function PaymentPage() {
                 step={1}
                 value={clampedDays}
                 onChange={(e) => setDays(parseInt(e.target.value))}
+                aria-label={`Trading days: ${clampedDays}`}
                 className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-blue-500 bg-muted"
               />
               <div className="flex justify-between text-xs text-muted-foreground">

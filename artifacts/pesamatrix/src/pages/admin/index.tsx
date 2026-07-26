@@ -1666,6 +1666,7 @@ function BannerSettingsTab() {
             <input
               type="range" min={10} max={20} value={form.fontSize}
               onChange={(e) => setField("fontSize", Number(e.target.value))}
+              aria-label={`Font size: ${form.fontSize}px`}
               className="w-full accent-blue-500"
             />
           </div>
@@ -1682,6 +1683,7 @@ function BannerSettingsTab() {
             <input
               type="range" min={32} max={80} value={form.bannerHeight}
               onChange={(e) => setField("bannerHeight", Number(e.target.value))}
+              aria-label={`Banner height: ${form.bannerHeight}px`}
               className="w-full accent-blue-500"
             />
           </div>
@@ -1690,6 +1692,7 @@ function BannerSettingsTab() {
             <input
               type="range" min={15} max={90} value={form.tickerSpeed}
               onChange={(e) => setField("tickerSpeed", Number(e.target.value))}
+              aria-label={`Ticker speed: ${form.tickerSpeed} seconds per loop`}
               className="w-full accent-blue-500"
             />
           </div>
@@ -1698,6 +1701,7 @@ function BannerSettingsTab() {
             <input
               type="range" min={5} max={30} value={form.refreshRate}
               onChange={(e) => setField("refreshRate", Number(e.target.value))}
+              aria-label={`Data refresh rate: every ${form.refreshRate} seconds`}
               className="w-full accent-blue-500"
             />
           </div>

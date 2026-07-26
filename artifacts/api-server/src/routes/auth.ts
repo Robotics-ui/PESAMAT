@@ -443,10 +443,17 @@ router.post("/auth/forgot-password", async (req, res): Promise<void> => {
     }
   }
 
-  res.json({
-    message: "Reset link generated. Share this link with the user — it expires in 1 hour.",
-    resetLink,
-  });
+  // In production the link is delivered only via SMS — never include it in the
+  // API response body (avoids leaking a valid reset token to any caller of this
+  // unauthenticated endpoint). In development/demo it is returned for convenience.
+  if (process.env.NODE_ENV === "production") {
+    res.json({ message: "If an account exists with that email, a reset link has been sent." });
+  } else {
+    res.json({
+      message: "Reset link generated (dev only). In production this is sent via SMS only.",
+      resetLink,
+    });
+  }
 });
 
 router.post("/auth/reset-password", async (req, res): Promise<void> => {

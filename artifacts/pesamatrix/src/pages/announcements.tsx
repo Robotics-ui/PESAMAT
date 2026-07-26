@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Bell, RefreshCw, AlertTriangle, Info, AlertCircle } from "lucide-react";
+import { Bell, RefreshCw, AlertTriangle, Info, AlertCircle, Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 interface Announcement {
@@ -20,7 +20,7 @@ const PRIORITY_CONFIG: Record<string, { label: string; icon: React.ElementType; 
 export default function AnnouncementsPage() {
   const { token } = useAuth();
 
-  const { data: announcements = [], isLoading, refetch } = useQuery<Announcement[]>({
+  const { data: announcements = [], isLoading, isError, refetch } = useQuery<Announcement[]>({
     queryKey: ["announcements"],
     queryFn: async () => {
       const res = await fetch("/api/announcements", { headers: { Authorization: `Bearer ${token}` } });
@@ -49,7 +49,14 @@ export default function AnnouncementsPage() {
         </div>
 
         {isLoading ? (
-          <div className="text-center text-muted-foreground py-12 text-sm">Loading...</div>
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="h-7 w-7 animate-spin text-blue-500" />
+          </div>
+        ) : isError ? (
+          <div className="flex items-center gap-3 rounded-lg border border-red-600/30 bg-red-600/10 p-4 text-red-400">
+            <AlertCircle className="h-5 w-5 shrink-0" />
+            <p className="text-sm font-medium">Failed to load announcements. <button onClick={() => void refetch()} className="underline hover:no-underline">Try again</button></p>
+          </div>
         ) : sorted.length === 0 ? (
           <div className="text-center text-muted-foreground py-12 text-sm">No announcements at this time.</div>
         ) : (

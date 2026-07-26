@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { MessageSquare, Send, Settings, FileText, List, RefreshCw, Eye, EyeOff, CheckCircle, XCircle, ShieldCheck } from "lucide-react";
+import { MessageSquare, Send, Settings, FileText, List, RefreshCw, Eye, EyeOff, CheckCircle, XCircle, ShieldCheck, Loader2 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 const token = () => localStorage.getItem("token") ?? "";
@@ -189,7 +189,11 @@ function SettingsTab() {
     }
   }
 
-  if (isLoading) return <div className="text-muted-foreground text-sm py-8 text-center">Loading...</div>;
+  if (isLoading) return (
+    <div className="flex items-center justify-center py-16">
+      <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -392,7 +396,11 @@ function TemplatesTab() {
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  if (isLoading) return <div className="text-muted-foreground text-sm py-8 text-center">Loading...</div>;
+  if (isLoading) return (
+    <div className="flex items-center justify-center py-16">
+      <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+    </div>
+  );
 
   return (
     <div className="space-y-4">

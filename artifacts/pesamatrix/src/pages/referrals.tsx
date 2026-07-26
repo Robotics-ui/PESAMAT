@@ -13,6 +13,8 @@ import {
   CheckCircle2,
   Clock,
   XCircle,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -101,7 +103,9 @@ export default function ReferralsPage() {
   if (isLoading) {
     return (
       <AppLayout>
-        <div className="p-6 text-muted-foreground">Loading referral dashboard...</div>
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+        </div>
       </AppLayout>
     );
   }
@@ -109,7 +113,12 @@ export default function ReferralsPage() {
   if (error || !data) {
     return (
       <AppLayout>
-        <div className="p-6 text-destructive">Failed to load referral dashboard.</div>
+        <div className="p-6 max-w-md">
+          <div className="flex items-center gap-3 rounded-lg border border-red-600/30 bg-red-600/10 p-4 text-red-400">
+            <AlertCircle className="h-5 w-5 shrink-0" />
+            <p className="text-sm font-medium">Failed to load referral dashboard. Please refresh and try again.</p>
+          </div>
+        </div>
       </AppLayout>
     );
   }
