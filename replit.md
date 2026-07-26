@@ -1,72 +1,61 @@
-# PESAMATRIX V2
+# PesaMatrix
 
-Cloud-to-cloud copy trading SaaS platform powered by MetaApi CopyFactory, with M-Pesa STK Push subscriptions (trading-days-only countdown).
-
-## Run & Operate
-
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 8080, proxied at `/api`)
-- `pnpm --filter @workspace/pesamatrix run dev` — run the React frontend
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
-- Required env: `SESSION_SECRET` — JWT signing secret (already set)
+A cloud-to-cloud copy trading platform that lets subscribers copy expert MT5 trades automatically, with M-Pesa payments and MetaAPI/CopyFactory integration.
 
 ## Stack
 
-- pnpm workspaces, Node.js 24, TypeScript 5.9
-- Frontend: React + Vite (at `/`)
-- API: Express 5 (at `/api`)
-- DB: PostgreSQL + Drizzle ORM
-- Auth: JWT (bcryptjs + jsonwebtoken, 30-day tokens)
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
-- Scheduler: node-cron (subscription expiry check every 30 min)
+- **Frontend**: React + Vite (TypeScript, Tailwind CSS, shadcn/ui, TanStack Query) — port 5000
+- **Backend**: Express 5 API server (TypeScript, pino logging, JWT auth) — port 8080
+- **Database**: PostgreSQL via Drizzle ORM (`@workspace/db`)
+- **API contract**: OpenAPI spec → Orval codegen → `@workspace/api-client-react` + `@workspace/api-zod`
+- **Monorepo**: pnpm workspaces (`artifacts/`, `lib/`)
 
-## Where things live
+## How to run
 
-- `lib/api-spec/openapi.yaml` — source of truth for all API contracts
-- `lib/db/src/schema/` — Drizzle ORM table definitions
-- `lib/api-client-react/src/generated/api.ts` — generated React Query hooks
-- `lib/api-zod/src/generated/api.ts` — generated Zod schemas
-- `artifacts/api-server/src/routes/` — Express route handlers
-- `artifacts/api-server/src/lib/scheduler.ts` — auto-suspension cron job
-- `artifacts/pesamatrix/src/pages/` — frontend pages
-- `artifacts/pesamatrix/src/hooks/use-auth.tsx` — JWT auth context
+```
+PORT=8080 pnpm --filter @workspace/api-server run dev & pnpm --filter @workspace/pesamatrix run dev
+```
 
-## Architecture decisions
+The "Start application" workflow runs this automatically. The frontend is served on port 5000 and the API on port 8080.
 
-- **Demo mode**: If `METAAPI_TOKEN` is missing, MetaApi operations are local-only. If `MPESA_*` env vars are missing, payments are simulated immediately (demo/dev).
-- **Trading-day countdown**: Subscription expiry uses calendar days but the UI shows trading days remaining (Mon–Fri). Auto-suspension scheduler runs every 30 min.
-- **JWT auth**: Tokens stored in localStorage, injected via `setAuthTokenGetter` from `@workspace/api-client-react`.
-- **Admin seed**: `admin@pesamatrix.com` / `Admin@2024!` seeded on first run. Demo trader: `trader@pesamatrix.com` / `Trader@2024!` with 5-day active subscription.
-- **Scheduler**: `node-cron` runs every 30 min, expires subscriptions past their `endDate`, suspends all bindings for affected slave accounts.
+## Environment variables
 
-## Product
+| Variable | Required | Notes |
+|---|---|---|
+| `DATABASE_URL` | Yes | Auto-provided by Replit's managed PostgreSQL |
+| `SESSION_SECRET` | Yes (prod) | JWT signing key — set as a Replit Secret |
+| `METAAPI_TOKEN` | For trading | MetaApi cloud token; can also be set via Admin panel |
+| `COPYFACTORY_WEBHOOK_SECRET` | For webhooks | CopyFactory webhook validation |
+| `MPESA_CONSUMER_KEY` | For payments | Safaricom Daraja API |
+| `MPESA_CONSUMER_SECRET` | For payments | Safaricom Daraja API |
+| `MPESA_PASSKEY` | For payments | Safaricom Daraja API |
+| `MPESA_SHORTCODE` | For payments | Safaricom Daraja paybill/till number |
+| `MPESA_CALLBACK_URL` | For payments | Public URL for STK push callbacks |
+| `MSPACE_API_KEY` | For SMS | Configurable in Admin > SMS panel |
+| `MSPACE_USERNAME` | For SMS | Configurable in Admin > SMS panel |
 
-- **Auth**: Register/Login with JWT tokens
-- **Subscribe**: M-Pesa STK Push payment with trading-day-only countdown timer
-- **Master Accounts**: Add MetaApi signal provider accounts
-- **Slave Accounts**: Add follower accounts that copy from masters
-- **Strategies**: Create CopyFactory strategies linking masters to copy logic
-- **Bindings**: Bind slave accounts to strategies with lot multipliers
-- **Trade Logs**: View full history of copied trades with P/L
-- **Admin Panel**: Manage users, subscriptions, revenue stats, and pricing settings
+## Default seeded accounts
+
+On first startup the server seeds:
+- **Admin**: `admin@pesamatrix.com` / `Admin@1234`
+- **Demo trader**: available for testing
+
+## Schema management
+
+Push schema changes to the development database:
+```
+pnpm --filter @workspace/db push
+```
+
+Production schema is managed automatically by Replit's Publish flow.
+
+## API codegen
+
+Regenerate the frontend API client from the OpenAPI spec:
+```
+cd lib/api-spec && pnpm run generate
+```
 
 ## User preferences
 
-- Blue (#2563eb) and green (#16a34a) color scheme, dark mode default
-- No emojis in code or UI
-
-## Gotchas
-
-- Generated hook names from Orval use `useList*` for GET-all endpoints, not `useGet*`. E.g. `useListMasterAccounts` not `useGetMasterAccounts`.
-- Query key functions follow `getList*QueryKey` or `getGet*QueryKey` pattern. Check `lib/api-client-react/src/generated/api.ts` for exact names.
-- Do NOT run `pnpm dev` at workspace root. Use `restart_workflow` to start/stop services.
-- Always run `pnpm --filter @workspace/api-spec run codegen` after changing `lib/api-spec/openapi.yaml`.
-
-## Pointers
-
-- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+<!-- Add user-specific preferences here -->
