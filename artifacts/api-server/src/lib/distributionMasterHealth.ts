@@ -73,9 +73,9 @@ export async function runHealthTick(): Promise<void> {
   try {
     const token = await getMetaApiToken();
     if (!token) {
-      const msg = "METAAPI_TOKEN not set — health check skipped";
-      logger.warn(msg);
-      workerTickFailed("dist-master-health", msg, startedAt);
+      // No token — skip gracefully without marking the worker as failed.
+      // Health checks will begin automatically once METAAPI_TOKEN is configured.
+      workerTickComplete("dist-master-health", { startedAt, jobsProcessed: 0, errors: [] });
       return;
     }
 
