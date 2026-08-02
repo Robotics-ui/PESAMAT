@@ -47,6 +47,7 @@ const AdminHealthPage = lazy(() => import("@/pages/admin/health"));
 const AccountFundingPage = lazy(() => import("@/pages/account-funding"));
 const FundingAdminPage = lazy(() => import("@/pages/admin/funding-admin"));
 const FundingTermsPage = lazy(() => import("@/pages/funding-terms"));
+const DistributionMastersPage = lazy(() => import("@/pages/admin/distribution-masters"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -113,6 +114,7 @@ function Router() {
         <Route path="/account-funding" component={AccountFundingPage} />
         <Route path="/funding-terms" component={FundingTermsPage} />
         <Route path="/admin/funding" component={FundingAdminPage} />
+        <Route path="/admin/distribution-masters" component={DistributionMastersPage} />
         <Route component={NotFound} />
       </Switch>
     </Suspense>

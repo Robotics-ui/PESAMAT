@@ -31,6 +31,7 @@ import {
   HelpCircle,
   Wallet,
   X,
+  Network,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -62,6 +63,7 @@ const navItems = [
 
 const adminNavItems = [
   { href: "/admin", label: "Admin Panel", icon: Shield },
+  { href: "/admin/distribution-masters", label: "Distribution Masters", icon: Network },
   { href: "/admin/diagnostics", label: "MetaApi Diagnostics", icon: Activity },
   { href: "/admin/media-center", label: "Media Center", icon: Image },
   { href: "/admin/news", label: "Trading News", icon: Newspaper },

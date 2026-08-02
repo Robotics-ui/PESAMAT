@@ -1,0 +1,291 @@
+PesaMatrix Copy Trading Scaling Upgrade
+IMPORTANT
+DO NOT rewrite, remove or break the existing copy trading system.
+The current production architecture is working correctly and supports approximately 2,000 slave accounts.
+This task is an extension only.
+Maintain backward compatibility with all existing APIs, workers, authentication, subscription enforcement, MetaApi integration, CopyFactory integration, payment logic, admin panel and user dashboard.
+All current functionality must continue working without modification.
+Objective
+Upgrade PesaMatrix from supporting one distribution master serving approximately 2,000 slave accounts to a horizontally scalable architecture capable of supporting 10,000–15,000 slave accounts.
+The system must continue using MetaApi Cloud-to-Cloud CopyFactory.
+No VPS.
+No MT5 terminals.
+No Expert Advisors.
+New Architecture
+Instead of
+Trading Master
+      │
+   2000 Slaves
+Upgrade to
+Trading Master
+        │
+        │
+Trade Replication Engine
+        │
+ ┌──────┼──────┬──────┬──────┐
+ │      │      │      │
+Master1 Master2 Master3 Master4 ...
+ │       │       │       │
+2000    2000    2000    2000
+Slaves  Slaves  Slaves  Slaves
+The Trading Master remains the only account where trades are opened, modified and closed.
+The application must automatically replicate every trading event to all Distribution Masters.
+Distribution Masters are then responsible for serving their own subscriber groups.
+New Database Tables
+Create new tables without modifying existing tables.
+master_accounts
+id
+name
+metaapi_account_id
+strategy_id
+status
+capacity
+current_load
+priority
+created_at
+status
+ONLINE
+OFFLINE
+MAINTENANCE
+DISABLED
+strategy_groups
+id
+name
+description
+status
+created_at
+Example
+Gold VIP
+
+Forex VIP
+
+Indices
+
+Crypto
+master_bindings
+id
+user_id
+master_account_id
+strategy_id
+subscription_id
+created_at
+This table maps every subscriber to one Distribution Master.
+Do NOT remove the existing binding system.
+Extend it.
+Trade Replication Engine
+Create a new module.
+services/trade_replication.py
+Responsibilities
+When Trading Master
+opens trade
+modifies SL
+modifies TP
+partially closes
+closes trade
+Immediately broadcast the same action to every ONLINE Distribution Master.
+Replication must be asynchronous.
+Failures on one master must not affect others.
+Log every failure.
+Retry automatically.
+Load Balancer Worker
+Create
+workers/load_balancer.py
+Runs every 30 seconds.
+Responsibilities
+Find all ONLINE masters.
+Check
+capacity
+
+current_load
+
+health
+Assign every new subscriber to the least-loaded ONLINE master.
+Example
+Master A
+
+capacity 2500
+
+current 1730
+
+Master B
+
+capacity 2500
+
+current 2088
+
+Assign new subscriber to Master A.
+Never exceed capacity.
+Subscription Worker
+Keep existing worker.
+Extend only.
+Responsibilities
+Activate subscriptions.
+Deactivate expired subscriptions.
+Bind subscribers to assigned Distribution Master.
+Unbind expired subscribers.
+Do not change existing subscription logic.
+Health Worker
+Create
+workers/master_health.py
+Runs every 10 seconds.
+Responsibilities
+Ping every Distribution Master using MetaApi.
+Monitor
+Connection
+Synchronization
+Latency
+If disconnected longer than 60 seconds
+Mark
+OFFLINE
+Stop assigning subscribers.
+Notify admin.
+Continue monitoring.
+When healthy again
+Mark
+ONLINE
+Rebalancer Worker
+Create
+workers/rebalancer.py
+Runs every hour.
+Responsibilities
+Check utilisation.
+Example
+Master A
+
+2490 users
+
+Master B
+
+700 users
+
+Master C
+
+620 users
+Suggest or perform controlled migration of subscribers from overloaded masters to underutilized masters.
+Never interrupt active trades.
+Migration must preserve subscription status.
+Migration should be configurable.
+Analytics Worker
+Create
+workers/analytics.py
+Runs every 5 minutes.
+Collect
+Total subscribers
+
+Total masters
+
+Average load
+
+Highest load
+
+Lowest load
+
+Failed replications
+
+Master uptime
+
+Health percentage
+
+Replication latency
+
+VIP subscribers
+
+FREE subscribers
+
+Broker distribution
+
+Demo accounts
+
+Live accounts
+
+Conversion rate
+
+Daily new users
+
+Monthly revenue
+Expose data through
+GET
+
+/api/admin/analytics
+Admin Dashboard
+Add
+Distribution Masters page
+Display
+Master name
+
+Status
+
+Capacity
+
+Current load
+
+Latency
+
+Health %
+
+Broker
+
+Strategy
+
+Actions
+Actions
+Disable
+
+Maintenance
+
+Reconnect
+
+Rebalance
+
+View subscribers
+Subscriber Assignment
+Every subscriber belongs to exactly one Distribution Master.
+Assignment must be automatic.
+No manual allocation.
+When subscription expires
+Automatically unbind.
+When renewed
+Automatically bind again.
+Fault Tolerance
+If one Distribution Master fails
+Do NOT affect others.
+Pause new allocations.
+Keep retrying.
+Log every failure.
+Notify administrator.
+Performance
+All replication must use asynchronous execution.
+Workers must never block API requests.
+Queue replication jobs.
+Retry failed jobs with exponential backoff.
+Existing APIs
+Do NOT change
+Authentication
+
+Payments
+
+Subscriptions
+
+Signals
+
+Dashboard
+
+Profile
+
+Admin Login
+
+JWT
+
+Role Protection
+
+VIP Protection
+
+CopyFactory Integration
+Only extend functionality.
+Code Quality
+Keep existing project structure.
+Create new modules where necessary.
+Avoid modifying stable production files unless absolutely necessary.
+Prefer dependency injection and modular services.
+Document every new worker and API.
+Write scalable code capable of supporting future expansion to 50,000+ subscribers with minimal architectural changes.

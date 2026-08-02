@@ -14,6 +14,11 @@ import { seedDefaultAccounts, seedReferralSettings, seedFundingSettings } from "
 import { startSmsWorker } from "./lib/smsWorker";
 import { seedDefaultTemplates, seedSmsSettings } from "./lib/smsService";
 import { startWorkerWatchdog } from "./lib/workerRegistry";
+import { startDistributionMasterHealthWorker } from "./lib/distributionMasterHealth";
+import { startLoadBalancerWorker, recalculateAllLoads } from "./lib/loadBalancer";
+import { startRebalancerWorker } from "./lib/rebalancer";
+import { startAnalyticsWorker } from "./lib/analyticsWorker";
+import { syncAllReplicationSubscriptions } from "./lib/tradeReplication";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -141,6 +146,19 @@ startReconnectWorker();
 startSmsWorker();
 // Start worker watchdog — monitors all workers, auto-restarts failed ones every 30s
 startWorkerWatchdog();
+// ── Scaling upgrade — Distribution Master workers ────────────────────────────
+// Recalculate currentLoad from actual binding counts on startup
+void recalculateAllLoads();
+// Health monitor: pings every Distribution Master every 10 s
+startDistributionMasterHealthWorker();
+// Load balancer: assigns unbound active subscribers to least-loaded masters every 30 s
+startLoadBalancerWorker();
+// Rebalancer: detects and migrates overloaded masters hourly
+startRebalancerWorker();
+// Analytics: collects platform-wide metrics every 5 min
+startAnalyticsWorker();
+// Sync CopyFactory replication subscriptions for all ONLINE Distribution Masters
+void syncAllReplicationSubscriptions();
 // Seed SMS settings from env vars (auto-enables if MSPACE_API_KEY + MSPACE_USERNAME are set)
 void seedSmsSettings();
 // Seed default SMS templates

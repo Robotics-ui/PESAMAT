@@ -28,3 +28,6 @@ export * from "./customerCareSettings";
 export * from "./fundingSettings";
 export * from "./fundingApplications";
 export * from "./fundingVerificationAttempts";
+export * from "./distributionMasters";
+export * from "./strategyGroups";
+export * from "./masterBindings";
