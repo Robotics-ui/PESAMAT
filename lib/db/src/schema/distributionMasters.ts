@@ -37,6 +37,11 @@ export const distributionMastersTable = pgTable("distribution_masters", {
   /** Connection/sync status from MetaApi */
   connectionStatus: text("connection_status"),
   synchronizationStatus: text("synchronization_status"),
+  /**
+   * Geographic region for latency-aware assignment.
+   * Examples: "Africa", "Europe", "Asia", "Middle East", "North America", "South America"
+   */
+  region: text("region"),
   /** Internal notes for operators */
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

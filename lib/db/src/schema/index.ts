@@ -31,3 +31,5 @@ export * from "./fundingVerificationAttempts";
 export * from "./distributionMasters";
 export * from "./strategyGroups";
 export * from "./masterBindings";
+export * from "./systemSettings";
+export * from "./tradeAuditLogs";

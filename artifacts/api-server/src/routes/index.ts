@@ -22,6 +22,7 @@ import referralsRouter from "./referrals";
 import faqsRouter from "./faqs";
 import fundingRouter from "./funding";
 import distributionMastersRouter from "./distributionMasters";
+import systemSettingsRouter from "./systemSettings";
 
 const router: IRouter = Router();
 
@@ -48,6 +49,7 @@ router.use(referralsRouter);
 router.use(faqsRouter);
 router.use(fundingRouter);
 router.use(distributionMastersRouter);
+router.use(systemSettingsRouter);
 
 // Catch-all for unmatched /api routes — return JSON instead of falling through to the React app
 router.use((_req: Request, res: Response) => {

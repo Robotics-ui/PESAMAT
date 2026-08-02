@@ -60,6 +60,7 @@ interface Analytics {
   collectedAt: string;
   totalSubscribers: number;
   activeSubscribers: number;
+  freeTrialSubscribers?: number;
   totalMasters: number;
   onlineMasters: number;
   offlineMasters: number;
@@ -68,14 +69,22 @@ interface Analytics {
   lowestLoadPercent: number;
   totalCapacity: number;
   totalCurrentLoad: number;
+  masterUtilizationPercent?: number;
   failedReplications: number;
   replicationSuccessRate: number;
+  averageReplicationLatencyMs?: number;
+  totalCopiedTradesToday?: number;
   totalSlaveAccounts: number;
   totalUsers: number;
-  dailyNewUsers: number;
+  /** @deprecated use newUsersToday */
+  dailyNewUsers?: number;
+  newUsersToday?: number;
   conversionRate: number;
+  demoToLiveConversionRate?: number;
+  revenueToday?: number;
   monthlyRevenue: number;
   masterHealthPercent: number;
+  systemHealthPercent?: number;
 }
 
 function statusColor(status: string) {
@@ -391,7 +400,7 @@ export default function DistributionMastersPage() {
                   ["Active Subscribers", analytics.activeSubscribers.toLocaleString()],
                   ["Free Trial", analytics.freeTrialSubscribers?.toLocaleString() ?? "—"],
                   ["Total Slave Accounts", analytics.totalSlaveAccounts.toLocaleString()],
-                  ["Daily New Users", analytics.dailyNewUsers.toLocaleString()],
+                  ["Daily New Users", (analytics.newUsersToday ?? analytics.dailyNewUsers ?? 0).toLocaleString()],
                   ["Conversion Rate", `${analytics.conversionRate}%`],
                   ["Monthly Revenue", `KES ${analytics.monthlyRevenue.toLocaleString()}`],
                 ].map(([label, value]) => (

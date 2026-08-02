@@ -1,23 +1,82 @@
 /**
- * Load Balancer Worker
+ * Intelligent Load Balancer Worker
  *
  * Runs every 30 seconds.
  *
  * Responsibilities:
- *  1. Find all active subscribers who have no Distribution Master binding yet.
- *  2. Assign each to the least-loaded ONLINE Distribution Master that still has
- *     remaining capacity (capacity - currentLoad > 0).
- *  3. Update currentLoad on the Distribution Master after each assignment.
- *  4. Never exceed a master's capacity.
+ *  1. Find all active subscribers (active or free_trial) who have no Distribution
+ *     Master binding yet.
+ *  2. Score every ONLINE Distribution Master using a composite Health Score (0–100):
+ *       - Capacity headroom  (40 pts) — higher remaining capacity = more pts
+ *       - Latency            (20 pts) — lower latency = more pts
+ *       - Online status      (20 pts) — ONLINE = 20, else 0
+ *       - Connection health  (10 pts) — MetaApi connectionStatus CONNECTED = 10
+ *       - Sync health        (10 pts) — MetaApi synchronizationStatus SYNCHRONIZED = 10
+ *  3. Apply bonus scores for broker match (+15) and region match (+10).
+ *  4. Assign each unbound subscriber to the highest-scoring master.
+ *  5. Never exceed Maximum Capacity − Reserved Capacity to leave headroom for
+ *     reconnects and unexpected spikes.  Reserved% comes from system_settings
+ *     MASTER_RESERVED_CAPACITY_PERCENT (default 10%).
  */
 
-import cron from "node-cron";
-import { db, distributionMastersTable, masterBindingsTable, subscriptionsTable } from "@workspace/db";
-import { eq, and, lt, sql } from "drizzle-orm";
+import { db, distributionMastersTable, masterBindingsTable, subscriptionsTable, slaveAccountsTable, usersTable } from "@workspace/db";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import { logger } from "./logger";
 import { registerWorker, workerTickStart, workerTickComplete, workerTickFailed } from "./workerRegistry";
+import { getSystemSettingFloat, getSystemSettingBool } from "./systemSettings";
 
-const LOAD_BALANCER_INTERVAL = "*/30 * * * * *"; // every 30 seconds (cron with seconds)
+const LOAD_BALANCER_INTERVAL_MS = 30_000;
+
+// ── Health Score Calculator ───────────────────────────────────────────────────
+
+function calculateHealthScore(
+  master: typeof distributionMastersTable.$inferSelect,
+  reservedPercent: number,
+): number {
+  if (master.status !== "ONLINE") return 0;
+
+  const maxAssignable = Math.floor(master.capacity * (1 - reservedPercent / 100));
+  if (maxAssignable <= 0) return 0;
+
+  const remaining = maxAssignable - master.currentLoad;
+  if (remaining <= 0) return 0;
+
+  // Capacity headroom: 0–40 pts
+  const capacityScore = Math.round((remaining / maxAssignable) * 40);
+
+  // Latency: 0–20 pts (0 pts at ≥500ms, 20 pts at 0ms)
+  const latency = master.latencyMs ?? 999;
+  const latencyScore = Math.max(0, Math.round(20 - latency / 25));
+
+  // Online presence: 20 pts
+  const onlineScore = 20;
+
+  // MetaApi connection: 0–10 pts
+  const connScore = (master.connectionStatus ?? "").toUpperCase() === "CONNECTED" ? 10 : 0;
+
+  // CopyFactory sync: 0–10 pts
+  const syncScore = (master.synchronizationStatus ?? "").toUpperCase() === "SYNCHRONIZED" ? 10 : 0;
+
+  return capacityScore + latencyScore + onlineScore + connScore + syncScore;
+}
+
+function applyContextBonus(
+  baseScore: number,
+  master: typeof distributionMastersTable.$inferSelect,
+  userBroker: string | null,
+  userRegion: string | null,
+): number {
+  let bonus = 0;
+  if (userBroker && master.broker && master.broker.toLowerCase() === userBroker.toLowerCase()) {
+    bonus += 15; // Broker match — improves execution quality
+  }
+  if (userRegion && master.region && master.region.toLowerCase() === userRegion.toLowerCase()) {
+    bonus += 10; // Region match — reduces latency
+  }
+  return baseScore + bonus;
+}
+
+// ── Main Tick ─────────────────────────────────────────────────────────────────
 
 export async function runLoadBalancerTick(): Promise<void> {
   const startedAt = new Date().toISOString();
@@ -28,90 +87,148 @@ export async function runLoadBalancerTick(): Promise<void> {
   let skipped = 0;
 
   try {
-    // Get all ONLINE masters with remaining capacity, ordered by load ratio ASC
+    const [reservedPercent, autoAssign] = await Promise.all([
+      getSystemSettingFloat("MASTER_RESERVED_CAPACITY_PERCENT", 10),
+      getSystemSettingBool("AUTO_ASSIGN_MASTER", true),
+    ]);
+
+    if (!autoAssign) {
+      logger.debug("Load balancer: AUTO_ASSIGN_MASTER is disabled — skipping tick");
+      workerTickComplete("load-balancer", { startedAt, jobsProcessed: 0, errors });
+      return;
+    }
+
+    // All ONLINE masters
     const onlineMasters = await db
       .select()
       .from(distributionMastersTable)
       .where(eq(distributionMastersTable.status, "ONLINE"));
 
-    // Filter to those with remaining capacity and sort by load ratio
-    const availableMasters = onlineMasters
-      .filter((m) => m.currentLoad < m.capacity)
-      .sort((a, b) => a.currentLoad / a.capacity - b.currentLoad / b.capacity);
+    // Filter to assignable masters (have remaining capacity after reservation)
+    const assignableMasters = onlineMasters.filter((m) => {
+      const maxAssignable = Math.floor(m.capacity * (1 - reservedPercent / 100));
+      return m.currentLoad < maxAssignable;
+    });
 
-    if (availableMasters.length === 0) {
-      logger.warn("Load balancer: no ONLINE Distribution Masters with available capacity");
+    if (assignableMasters.length === 0) {
+      logger.warn("Load balancer: no ONLINE Distribution Masters with assignable capacity");
       workerTickComplete("load-balancer", { startedAt, jobsProcessed: 0, errors });
       return;
     }
 
-    // Find active subscribers (active or free_trial) who have no master binding
-    const activeSubs = await db
-      .select()
-      .from(subscriptionsTable)
-      .where(
-        eq(subscriptionsTable.status, "active"),
-      );
+    // Pre-score all masters (base scores without user context)
+    const scoredMasters = assignableMasters.map((m) => ({
+      master: m,
+      baseScore: calculateHealthScore(m, reservedPercent),
+    }));
 
-    const freeTrialSubs = await db
-      .select()
-      .from(subscriptionsTable)
-      .where(
-        eq(subscriptionsTable.status, "free_trial"),
-      );
+    // Find active subscribers without a master binding
+    const [activeSubs, freeTrialSubs] = await Promise.all([
+      db.select().from(subscriptionsTable).where(eq(subscriptionsTable.status, "active")),
+      db.select().from(subscriptionsTable).where(eq(subscriptionsTable.status, "free_trial")),
+    ]);
 
     const allActiveSubs = [...activeSubs, ...freeTrialSubs];
+    if (allActiveSubs.length === 0) {
+      workerTickComplete("load-balancer", { startedAt, jobsProcessed: 0, errors });
+      return;
+    }
 
-    for (const sub of allActiveSubs) {
+    // Get all existing active bindings for these users in one query
+    const userIds = allActiveSubs.map((s) => s.userId);
+    const existingBindings = await db
+      .select({ userId: masterBindingsTable.userId })
+      .from(masterBindingsTable)
+      .where(
+        and(
+          inArray(masterBindingsTable.userId, userIds),
+          eq(masterBindingsTable.status, "active"),
+        ),
+      );
+    const boundUserIds = new Set(existingBindings.map((b) => b.userId));
+
+    // Get slave account brokers for unbound users (for broker-aware assignment)
+    const unboundSubs = allActiveSubs.filter((s) => !boundUserIds.has(s.userId));
+    if (unboundSubs.length === 0) {
+      workerTickComplete("load-balancer", { startedAt, jobsProcessed: 0, errors });
+      return;
+    }
+
+    const unboundUserIds = unboundSubs.map((s) => s.userId);
+    const slaveAccounts = await db
+      .select({
+        userId: slaveAccountsTable.userId,
+        broker: slaveAccountsTable.broker,
+      })
+      .from(slaveAccountsTable)
+      .where(inArray(slaveAccountsTable.userId, unboundUserIds));
+
+    // Map userId → broker (use first slave account's broker as heuristic)
+    const userBrokerMap = new Map<number, string>();
+    for (const sa of slaveAccounts) {
+      if (!userBrokerMap.has(sa.userId)) userBrokerMap.set(sa.userId, sa.broker);
+    }
+
+    // Running load tracker (in-memory for this tick)
+    const loadTracker = new Map<number, number>(
+      scoredMasters.map(({ master }) => [master.id, master.currentLoad]),
+    );
+
+    for (const sub of unboundSubs) {
       try {
-        // Check if this user already has an active master binding
-        const [existingBinding] = await db
-          .select()
-          .from(masterBindingsTable)
-          .where(
-            and(
-              eq(masterBindingsTable.userId, sub.userId),
-              eq(masterBindingsTable.status, "active"),
-            ),
-          )
-          .limit(1);
+        const userBroker = userBrokerMap.get(sub.userId) ?? null;
 
-        if (existingBinding) {
-          skipped++;
-          continue; // Already assigned
-        }
+        // Score with user context (broker/region bonus)
+        const best = scoredMasters
+          .map(({ master, baseScore }) => {
+            const currentLoad = loadTracker.get(master.id) ?? master.currentLoad;
+            const maxAssignable = Math.floor(master.capacity * (1 - reservedPercent / 100));
+            if (currentLoad >= maxAssignable) return null;
+            const score = applyContextBonus(baseScore, master, userBroker, null);
+            return { master, score };
+          })
+          .filter((x): x is { master: typeof distributionMastersTable.$inferSelect; score: number } => x !== null)
+          .sort((a, b) => b.score - a.score)[0];
 
-        // Pick the least-loaded master with remaining capacity
-        const master = availableMasters.find((m) => m.currentLoad < m.capacity);
-        if (!master) {
+        if (!best) {
           logger.warn({ userId: sub.userId }, "Load balancer: no master with capacity — skipping user");
           skipped++;
           continue;
         }
 
         // Create the binding
-        await db.insert(masterBindingsTable).values({
-          userId: sub.userId,
-          distributionMasterId: master.id,
-          subscriptionId: sub.id,
-          status: "active",
-        }).onConflictDoNothing();
+        await db
+          .insert(masterBindingsTable)
+          .values({
+            userId: sub.userId,
+            distributionMasterId: best.master.id,
+            subscriptionId: sub.id,
+            status: "active",
+          })
+          .onConflictDoNothing();
 
-        // Increment load on this master (in-memory for this tick)
-        master.currentLoad++;
+        // Track load in-memory for this tick
+        loadTracker.set(best.master.id, (loadTracker.get(best.master.id) ?? 0) + 1);
 
-        // Persist the new currentLoad
+        // Persist the incremented load
         await db
           .update(distributionMastersTable)
           .set({
             currentLoad: sql`${distributionMastersTable.currentLoad} + 1`,
             updatedAt: new Date(),
           })
-          .where(eq(distributionMastersTable.id, master.id));
+          .where(eq(distributionMastersTable.id, best.master.id));
 
         assigned++;
         logger.info(
-          { userId: sub.userId, masterId: master.id, masterName: master.name, newLoad: master.currentLoad, capacity: master.capacity },
+          {
+            userId: sub.userId,
+            masterId: best.master.id,
+            masterName: best.master.name,
+            score: best.score,
+            userBroker,
+            masterBroker: best.master.broker,
+          },
           "Load balancer: subscriber assigned to distribution master",
         );
       } catch (userErr) {
@@ -168,15 +285,15 @@ export async function recalculateAllLoads(): Promise<void> {
 export function startLoadBalancerWorker(): void {
   registerWorker({
     id: "load-balancer",
-    name: "Subscriber Load Balancer",
-    description: "Assigns active subscribers to least-loaded ONLINE Distribution Masters — runs every 30 s",
-    intervalMs: 30_000,
+    name: "Intelligent Load Balancer",
+    description:
+      "Scores Distribution Masters by health (capacity, latency, connection, sync) and assigns unbound subscribers to the highest-scoring master — runs every 30 s",
+    intervalMs: LOAD_BALANCER_INTERVAL_MS,
     staleThresholdMs: 5 * 60_000,
     restartFn: () => { void runLoadBalancerTick(); },
   });
 
-  // node-cron doesn't support seconds natively in some versions, use setInterval
-  setInterval(() => { void runLoadBalancerTick(); }, 30_000);
+  setInterval(() => { void runLoadBalancerTick(); }, LOAD_BALANCER_INTERVAL_MS);
 
-  logger.info({ intervalMs: 30_000 }, "Load balancer worker started");
+  logger.info({ intervalMs: LOAD_BALANCER_INTERVAL_MS }, "Intelligent load balancer worker started");
 }

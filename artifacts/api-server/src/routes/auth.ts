@@ -17,6 +17,7 @@ import { authenticate } from "../middlewares/authenticate";
 import { generateUniquePromoCode } from "../lib/promoCode";
 import { createNotification } from "../lib/notificationService";
 import { logger } from "../lib/logger";
+import { getSystemSettingBool, getSystemSettingInt } from "../lib/systemSettings";
 
 const router = Router();
 
@@ -268,11 +269,17 @@ router.post("/auth/verify-otp", authenticate, async (req, res): Promise<void> =>
 
   const eligible = !phoneHadTrial && !fingerprintHadTrial;
 
-  if (eligible) {
+  // Check system settings for trial enablement
+  const [trialEnabled, sysTrialDays] = await Promise.all([
+    getSystemSettingBool("TRIAL_ENABLED", true),
+    getSystemSettingInt("FREE_TRIAL_DAYS", 7),
+  ]);
+
+  if (eligible && trialEnabled) {
     const now = new Date();
-    // Read trial duration from admin settings (defaults to 2 days if not configured)
+    // Prefer system_settings FREE_TRIAL_DAYS; fall back to adminSettings.freeTrialDays
     const [adminSettings] = await db.select({ freeTrialDays: adminSettingsTable.freeTrialDays }).from(adminSettingsTable).limit(1);
-    const trialDays = adminSettings?.freeTrialDays ?? 2;
+    const trialDays = sysTrialDays > 0 ? sysTrialDays : (adminSettings?.freeTrialDays ?? 7);
     const trialEnd = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000);
     await db
       .update(subscriptionsTable)

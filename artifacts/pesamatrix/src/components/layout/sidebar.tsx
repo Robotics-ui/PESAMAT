@@ -32,6 +32,8 @@ import {
   Wallet,
   X,
   Network,
+  Settings,
+  FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -73,6 +75,8 @@ const adminNavItems = [
   { href: "/admin/faq", label: "FAQ Manager", icon: HelpCircle },
   { href: "/admin/workers", label: "Worker Dashboard", icon: Activity },
   { href: "/admin/funding", label: "Account Funding", icon: Wallet },
+  { href: "/admin/settings", label: "Platform Settings", icon: Settings },
+  { href: "/admin/trade-audit", label: "Trade Audit Journal", icon: FileText },
 ];
 
 function NavContent({ onNavigate }: { onNavigate?: () => void }) {
