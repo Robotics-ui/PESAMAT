@@ -146,7 +146,7 @@ export default function SystemSettingsPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/settings", {
+      const res = await fetch("/api/admin/system-settings", {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error("Failed to load");
@@ -164,7 +164,7 @@ export default function SystemSettingsPage() {
   const save = async () => {
     setSaving(true);
     try {
-      const res = await fetch("/api/admin/settings", {
+      const res = await fetch("/api/admin/system-settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify(settings),

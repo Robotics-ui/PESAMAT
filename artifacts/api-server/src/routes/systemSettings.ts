@@ -21,8 +21,8 @@ import { logger } from "../lib/logger";
 
 const router = Router();
 
-// ── GET /api/admin/settings ───────────────────────────────────────────────────
-router.get("/admin/settings", authenticate, requireAdmin, async (_req, res): Promise<void> => {
+// ── GET /api/admin/system-settings ───────────────────────────────────────────
+router.get("/admin/system-settings", authenticate, requireAdmin, async (_req, res): Promise<void> => {
   try {
     const settings = await getAllSystemSettings();
     res.json({ settings, defaults: SYSTEM_SETTING_DEFAULTS });
@@ -32,8 +32,8 @@ router.get("/admin/settings", authenticate, requireAdmin, async (_req, res): Pro
   }
 });
 
-// ── PUT /api/admin/settings ───────────────────────────────────────────────────
-router.put("/admin/settings", authenticate, requireAdmin, async (req, res): Promise<void> => {
+// ── PUT /api/admin/system-settings ───────────────────────────────────────────
+router.put("/admin/system-settings", authenticate, requireAdmin, async (req, res): Promise<void> => {
   const body = req.body as Record<string, unknown>;
 
   if (!body || typeof body !== "object") {
