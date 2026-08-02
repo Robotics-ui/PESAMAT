@@ -1,0 +1,315 @@
+# PesaMatrix V2 – Production Readiness Upgrade
+
+## IMPORTANT
+
+Do NOT rewrite, remove, or break any existing working functionality.
+
+The current platform is stable and production-ready.
+
+This task is an enhancement only.
+
+Maintain full backward compatibility with:
+
+- Authentication
+- JWT
+- MetaApi CopyFactory integration
+- Subscription enforcement
+- Payment system
+- Distribution Masters
+- Existing workers
+- Existing APIs
+- Admin Dashboard
+- Existing database tables
+
+Only extend the platform with the features below.
+
+---
+
+# 1. Platform Settings Module
+
+Create a configurable Platform Settings module instead of hardcoding values.
+
+Create a new table:
+
+system_settings
+
+- id
+- setting_key
+- setting_value
+- updated_at
+
+Store configurable settings such as:
+
+- FREE_TRIAL_DAYS
+- TRIAL_ENABLED
+- PHONE_VERIFICATION_REQUIRED
+- AUTO_ASSIGN_MASTER
+- AUTO_BIND_AFTER_VERIFICATION
+- VIP_MONTHLY_PRICE
+- PRO_MONTHLY_PRICE
+- MAX_USERS_PER_MASTER
+- MASTER_RESERVED_CAPACITY_PERCENT
+- AUTO_REBALANCE
+
+Provide secure ADMIN-only APIs:
+
+GET /api/admin/settings
+
+PUT /api/admin/settings
+
+All settings must be read dynamically by the application without requiring redeployment.
+
+---
+
+# 2. Admin Settings Page
+
+Create a new Admin page:
+
+/admin/settings
+
+Allow administrators to configure:
+
+- Free Trial Days
+- Enable / Disable Trial
+- Require Phone Verification
+- Auto Assign Distribution Master
+- Auto Bind After Verification
+- VIP Monthly Price
+- PRO Monthly Price
+- Maximum Users Per Distribution Master
+- Reserved Capacity Percentage
+- Auto Rebalancer ON/OFF
+
+All changes should take effect immediately.
+
+---
+
+# 3. Trial Subscription Flow
+
+After:
+
+- Successful registration
+- Successful phone verification
+
+Automatically:
+
+- Read FREE_TRIAL_DAYS from system_settings
+- Create a TRIAL subscription
+- Activate the subscription
+- Calculate expiry date
+- Bind the user to a Distribution Master only if AUTO_ASSIGN_MASTER is enabled
+
+Never hardcode trial duration.
+
+---
+
+# 4. User Roles
+
+Extend roles to include:
+
+- FREE
+- TRIAL
+- VIP
+- PRO
+- ADMIN
+
+Keep existing FREE and VIP functionality unchanged.
+
+TRIAL users should receive the same copy-trading privileges as VIP users during the active trial period.
+
+---
+
+# 5. Intelligent Load Balancer
+
+Upgrade the Load Balancer Worker.
+
+Instead of assigning users based only on the least-loaded master, calculate a Health Score using:
+
+- Current load
+- Capacity
+- Latency
+- Online status
+- MetaApi connection health
+- Replication delay
+
+Assign new subscribers to the highest-scoring healthy Distribution Master.
+
+Never exceed:
+
+Maximum Capacity − Reserved Capacity
+
+Example:
+
+Capacity = 2500
+
+Reserved Capacity = 10%
+
+Maximum Assignable Users = 2250
+
+This leaves spare capacity for reconnects and unexpected spikes.
+
+---
+
+# 6. Broker Awareness
+
+Extend Distribution Masters with:
+
+- Broker
+- Region
+- Server
+
+Whenever possible, assign users to a Distribution Master using the same broker.
+
+This improves execution quality and minimizes price differences.
+
+---
+
+# 7. Regional Awareness
+
+Add optional regional support.
+
+Examples:
+
+- Africa
+- Europe
+- Asia
+- Middle East
+- North America
+- South America
+
+Prefer assigning users to the nearest healthy Distribution Master to reduce latency.
+
+---
+
+# 8. Health Worker Improvements
+
+Extend the Health Worker to monitor:
+
+- MetaApi connection
+- CopyFactory synchronization
+- Replication latency
+- Failed replications
+- Retry queue length
+- Open positions
+- Last heartbeat
+- Connection uptime
+
+Display these metrics on the Admin Dashboard.
+
+---
+
+# 9. Analytics Improvements
+
+Extend the Analytics Worker to collect:
+
+- Total Users
+- Trial Users
+- VIP Users
+- PRO Users
+- Demo Accounts
+- Live Accounts
+- Demo → Live Conversion Rate
+- Revenue Today
+- Revenue This Month
+- New Users Today
+- Active Distribution Masters
+- Offline Distribution Masters
+- Replication Success Rate
+- Average Replication Latency
+- Total Copied Trades Today
+- Total Signals Today
+- Total Active Subscriptions
+- Master Utilization Percentage
+- Average Master Load
+- System Health Percentage
+
+Expose these metrics through:
+
+GET /api/admin/analytics
+
+---
+
+# 10. Trading Audit Journal
+
+Create a new table:
+
+trade_audit_logs
+
+Fields:
+
+- id
+- trading_master_id
+- distribution_master_id
+- subscriber_id
+- broker
+- account_type
+- trade_action
+- symbol
+- entry_price
+- stop_loss
+- take_profit
+- execution_time
+- replication_latency
+- status
+- failure_reason
+- created_at
+
+Every copied trade must be logged.
+
+Provide Admin Dashboard filters by:
+
+- Date
+- Subscriber
+- Distribution Master
+- Broker
+- Symbol
+- Status
+- Trade Type
+
+---
+
+# 11. Preserve Existing Architecture
+
+Do NOT modify or break:
+
+- CopyFactory workflows
+- Existing subscription enforcement
+- Authentication
+- JWT
+- Payments
+- Existing Distribution Master APIs
+- Existing workers
+- Existing admin pages
+- Existing frontend
+- Existing database schema
+
+Only extend existing functionality.
+
+---
+
+# 12. Code Quality
+
+Requirements:
+
+- Modular architecture
+- No duplicated code
+- Fully documented APIs
+- Backward compatible
+- Production-ready
+- High performance
+- Asynchronous where appropriate
+- Optimized for 50,000+ subscribers
+- Easy future expansion
+- Comprehensive logging and error handling
+
+---
+
+# 13. Expected Outcome
+
+The platform should become a fully configurable enterprise-grade SaaS copy trading system where administrators can manage platform behavior without changing code.
+
+All business rules should be configurable from the Admin Settings page.
+
+Existing users should continue using the platform without interruption.
+
+All new functionality must integrate seamlessly with the current PesaMatrix architecture while preserving stability, scalability, and reliability.
