@@ -19,8 +19,8 @@
  *     MASTER_RESERVED_CAPACITY_PERCENT (default 10%).
  */
 
-import { db, distributionMastersTable, masterBindingsTable, subscriptionsTable, slaveAccountsTable, usersTable } from "@workspace/db";
-import { eq, and, sql, inArray } from "drizzle-orm";
+import { db, distributionMastersTable, masterBindingsTable, subscriptionsTable, slaveAccountsTable } from "@workspace/db";
+import { eq, and, sql, inArray, notExists } from "drizzle-orm";
 import { logger } from "./logger";
 import { registerWorker, workerTickStart, workerTickComplete, workerTickFailed } from "./workerRegistry";
 import { getSystemSettingFloat, getSystemSettingBool } from "./systemSettings";
@@ -122,46 +122,48 @@ export async function runLoadBalancerTick(): Promise<void> {
       baseScore: calculateHealthScore(m, reservedPercent),
     }));
 
-    // Find active subscribers without a master binding
-    const [activeSubs, freeTrialSubs] = await Promise.all([
-      db.select().from(subscriptionsTable).where(eq(subscriptionsTable.status, "active")),
-      db.select().from(subscriptionsTable).where(eq(subscriptionsTable.status, "free_trial")),
-    ]);
-
-    const allActiveSubs = [...activeSubs, ...freeTrialSubs];
-    if (allActiveSubs.length === 0) {
-      workerTickComplete("load-balancer", { startedAt, jobsProcessed: 0, errors });
-      return;
-    }
-
-    // Get all existing active bindings for these users in one query
-    const userIds = allActiveSubs.map((s) => s.userId);
-    const existingBindings = await db
-      .select({ userId: masterBindingsTable.userId })
-      .from(masterBindingsTable)
+    // Find active/free_trial subscribers with NO active master binding — single JOIN query,
+    // no inArray fan-out, works safely at 50k+ scale. Process in batches of 500 per tick
+    // to avoid running a single tick for minutes.
+    const BATCH_PER_TICK = 500;
+    const unboundSubs = await db
+      .select({
+        id: subscriptionsTable.id,
+        userId: subscriptionsTable.userId,
+        status: subscriptionsTable.status,
+      })
+      .from(subscriptionsTable)
       .where(
         and(
-          inArray(masterBindingsTable.userId, userIds),
-          eq(masterBindingsTable.status, "active"),
+          sql`${subscriptionsTable.status} IN ('active', 'free_trial')`,
+          notExists(
+            db
+              .select({ one: sql`1` })
+              .from(masterBindingsTable)
+              .where(
+                and(
+                  eq(masterBindingsTable.userId, subscriptionsTable.userId),
+                  eq(masterBindingsTable.status, "active"),
+                ),
+              ),
+          ),
         ),
-      );
-    const boundUserIds = new Set(existingBindings.map((b) => b.userId));
+      )
+      .limit(BATCH_PER_TICK);
 
-    // Get slave account brokers for unbound users (for broker-aware assignment)
-    const unboundSubs = allActiveSubs.filter((s) => !boundUserIds.has(s.userId));
     if (unboundSubs.length === 0) {
       workerTickComplete("load-balancer", { startedAt, jobsProcessed: 0, errors });
       return;
     }
 
+    // Broker lookup for unbound users — bounded by BATCH_PER_TICK, so inArray is safe here
     const unboundUserIds = unboundSubs.map((s) => s.userId);
-    const slaveAccounts = await db
-      .select({
-        userId: slaveAccountsTable.userId,
-        broker: slaveAccountsTable.broker,
-      })
-      .from(slaveAccountsTable)
-      .where(inArray(slaveAccountsTable.userId, unboundUserIds));
+    const slaveAccounts = unboundUserIds.length > 0
+      ? await db
+          .select({ userId: slaveAccountsTable.userId, broker: slaveAccountsTable.broker })
+          .from(slaveAccountsTable)
+          .where(inArray(slaveAccountsTable.userId, unboundUserIds))
+      : [];
 
     // Map userId → broker (use first slave account's broker as heuristic)
     const userBrokerMap = new Map<number, string>();
@@ -256,27 +258,32 @@ export async function runLoadBalancerTick(): Promise<void> {
  */
 export async function recalculateAllLoads(): Promise<void> {
   try {
-    const masters = await db.select().from(distributionMastersTable);
-    for (const master of masters) {
-      const [result] = await db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(masterBindingsTable)
-        .where(
-          and(
-            eq(masterBindingsTable.distributionMasterId, master.id),
-            eq(masterBindingsTable.status, "active"),
-          ),
-        );
+    // Single aggregated query — one COUNT per master instead of N+1
+    const loadCounts = await db
+      .select({
+        masterId: masterBindingsTable.distributionMasterId,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(masterBindingsTable)
+      .where(eq(masterBindingsTable.status, "active"))
+      .groupBy(masterBindingsTable.distributionMasterId);
 
-      const actualLoad = result?.count ?? 0;
-      if (actualLoad !== master.currentLoad) {
-        await db
-          .update(distributionMastersTable)
-          .set({ currentLoad: actualLoad, updatedAt: new Date() })
-          .where(eq(distributionMastersTable.id, master.id));
-        logger.info({ masterId: master.id, oldLoad: master.currentLoad, newLoad: actualLoad }, "Load recalculated");
-      }
-    }
+    const loadMap = new Map(loadCounts.map((r) => [r.masterId, r.count]));
+
+    const masters = await db.select({ id: distributionMastersTable.id, currentLoad: distributionMastersTable.currentLoad }).from(distributionMastersTable);
+
+    await Promise.all(
+      masters.map(async (master) => {
+        const actualLoad = loadMap.get(master.id) ?? 0;
+        if (actualLoad !== master.currentLoad) {
+          await db
+            .update(distributionMastersTable)
+            .set({ currentLoad: actualLoad, updatedAt: new Date() })
+            .where(eq(distributionMastersTable.id, master.id));
+          logger.info({ masterId: master.id, oldLoad: master.currentLoad, newLoad: actualLoad }, "Load recalculated");
+        }
+      }),
+    );
   } catch (err) {
     logger.error({ err }, "Failed to recalculate distribution master loads");
   }
