@@ -1,0 +1,149 @@
+PesaMatrix Subscription System Upgrade (Maintain Existing Architecture)
+IMPORTANT
+Do NOT remove or rewrite any existing working functionality.
+The platform is already stable.
+Only extend and improve the subscription system.
+Maintain backward compatibility with:
+Authentication
+JWT
+MetaApi CopyFactory
+Distribution Masters
+Existing Workers
+Existing APIs
+Existing Payment System
+1. Remove Monthly Pricing
+Remove the hardcoded:
+VIP Monthly Price
+PRO Monthly Price
+The platform must no longer use monthly subscriptions.
+Instead use the existing Trading-Day subscription model.
+2. Admin Controls Daily Pricing
+Create configurable settings for:
+Daily Subscription Fee
+Minimum Subscription Days
+Maximum Subscription Days (optional)
+Example:
+Daily Fee = KES 150
+Minimum Days = 5
+Maximum Days = 365
+Store these values in system_settings.
+Do NOT hardcode them.
+3. User Subscription Flow
+When a user opens the Upgrade page:
+Display:
+Daily Subscription Fee
+Minimum Days
+Maximum Days
+Allow the user to choose the number of trading days.
+Example:
+Daily Fee = KES 150
+User selects 20 trading days
+Total:
+20 × 150 = KES 3,000
+Display the total price instantly as the user changes the number of days.
+4. Trading Days Only
+Subscription days must count only:
+Monday
+Tuesday
+Wednesday
+Thursday
+Friday
+Skip:
+Saturday
+Sunday
+Example:
+Purchase:
+10 Trading Days
+Starting Monday
+Expiry should be after 10 business days.
+Weekend days must never reduce the subscription balance.
+Use business-day calculations everywhere.
+5. Trial Users
+Trial subscriptions should also use trading-day calculations.
+If Trial = 5 days
+Those must be:
+5 trading days
+NOT calendar days.
+6. Admin Settings Page
+Replace:
+VIP Monthly Price
+PRO Monthly Price
+with:
+Daily Subscription Fee
+Minimum Subscription Days
+Maximum Subscription Days
+Trial Days
+Enable Trial
+Phone Verification Required
+Auto Assign Distribution Master
+Auto Bind After Verification
+Changes must take effect immediately.
+No redeployment required.
+7. Payment Page
+Replace the current VIP/PRO cards.
+Instead display:
+Trading Subscription
+Daily Fee
+Minimum Days
+Number of Days selector
+Total Amount
+M-Pesa Pay button
+Example:
+Daily Fee
+KES 150
+Trading Days
+[20]
+Total
+KES 3,000
+[Pay with M-Pesa]
+8. Subscription Activation
+After successful payment:
+Calculate trading-day expiry.
+Create subscription.
+Activate subscription.
+Bind to Distribution Master.
+Everything else remains unchanged.
+9. Remove Hardcoded Values
+Search the entire project.
+Remove every hardcoded value such as:
+KES 999/month
+$29/month
+30-day subscription
+VIP Monthly
+PRO Monthly
+Replace them with values from system_settings.
+The application should read all pricing dynamically.
+10. Dynamic FAQ
+Remove hardcoded values from:
+FAQ
+Help
+Instructions
+Subscription Guide
+Examples
+Instead use dynamic placeholders from system_settings.
+Example:
+Instead of:
+"VIP costs KES 999/month"
+Display:
+"Current Daily Subscription Fee: KES {daily_fee} per trading day."
+11. Dynamic Instructions
+Every page that mentions pricing or subscription duration must automatically use the current platform settings.
+If the administrator changes:
+Daily Fee
+Minimum Days
+Trial Days
+The changes must immediately appear throughout the application without editing code.
+12. Backward Compatibility
+Do NOT modify:
+Authentication
+CopyFactory
+Distribution Masters
+Workers
+Analytics
+Payments
+Bindings
+Only replace the pricing logic with the configurable trading-day subscription model.
+Expected Result
+The platform should become fully dynamic.
+Administrators can change pricing and subscription rules without touching the code.
+Users subscribe by selecting the number of trading days, and all calculations (pricing and expiry) are based on Monday–Friday only. All pricing, FAQs, help text, and instructions must pull values from system_settings instead of using hardcoded numbers. This makes the platform easier to maintain and more suitable for long-term production use.

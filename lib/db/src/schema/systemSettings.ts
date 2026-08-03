@@ -13,16 +13,17 @@ import { z } from "zod/v4";
  * so the system works even before any rows are inserted.
  *
  * Keys (canonical names):
- *   FREE_TRIAL_DAYS                — integer, trial duration in days
+ *   FREE_TRIAL_DAYS                — integer, trial duration in trading days
  *   TRIAL_ENABLED                  — "true" | "false"
  *   PHONE_VERIFICATION_REQUIRED    — "true" | "false"
  *   AUTO_ASSIGN_MASTER             — "true" | "false"
  *   AUTO_BIND_AFTER_VERIFICATION   — "true" | "false"
- *   VIP_MONTHLY_PRICE              — numeric string (KES)
- *   PRO_MONTHLY_PRICE              — numeric string (KES)
  *   MAX_USERS_PER_MASTER           — integer
  *   MASTER_RESERVED_CAPACITY_PERCENT — integer 0–100
  *   AUTO_REBALANCE                 — "true" | "false"
+ *
+ * Subscription pricing (daily fee, min/max days) lives in the admin_settings
+ * table and is managed via GET/PUT /api/admin/settings.
  */
 export const systemSettingsTable = pgTable("system_settings", {
   id: serial("id").primaryKey(),

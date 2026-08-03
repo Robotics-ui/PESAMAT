@@ -21,6 +21,18 @@ import { getSystemSettingBool, getSystemSettingInt } from "../lib/systemSettings
 
 const router = Router();
 
+/** Advance a date by N trading days (Mon–Fri), skipping weekends. */
+function addTradingDays(start: Date, days: number): Date {
+  const result = new Date(start);
+  let added = 0;
+  while (added < days) {
+    result.setDate(result.getDate() + 1);
+    const day = result.getDay();
+    if (day !== 0 && day !== 6) added++;
+  }
+  return result;
+}
+
 function generateOtp(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
@@ -280,7 +292,8 @@ router.post("/auth/verify-otp", authenticate, async (req, res): Promise<void> =>
     // Prefer system_settings FREE_TRIAL_DAYS; fall back to adminSettings.freeTrialDays
     const [adminSettings] = await db.select({ freeTrialDays: adminSettingsTable.freeTrialDays }).from(adminSettingsTable).limit(1);
     const trialDays = sysTrialDays > 0 ? sysTrialDays : (adminSettings?.freeTrialDays ?? 7);
-    const trialEnd = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000);
+    // Trial counts trading days only (Mon–Fri), not calendar days
+    const trialEnd = addTradingDays(now, trialDays);
     await db
       .update(subscriptionsTable)
       .set({ status: "free_trial", startDate: now, endDate: trialEnd, freeTrialUsed: 1 })

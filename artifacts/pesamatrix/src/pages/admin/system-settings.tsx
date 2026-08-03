@@ -1,16 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
   Settings, Save, RefreshCw, ToggleLeft, ToggleRight, DollarSign,
-  Users, Clock, Percent, Zap, CheckCircle2, AlertCircle,
+  Users, Clock, Percent, Zap, CheckCircle2, AlertCircle, CalendarDays,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -22,11 +20,15 @@ interface SystemSettings {
   PHONE_VERIFICATION_REQUIRED: string;
   AUTO_ASSIGN_MASTER: string;
   AUTO_BIND_AFTER_VERIFICATION: string;
-  VIP_MONTHLY_PRICE: string;
-  PRO_MONTHLY_PRICE: string;
   MAX_USERS_PER_MASTER: string;
   MASTER_RESERVED_CAPACITY_PERCENT: string;
   AUTO_REBALANCE: string;
+}
+
+interface PricingSettings {
+  dailyFee: string;
+  minDays: string;
+  maxDays: string;
 }
 
 // ── Toggle Component ──────────────────────────────────────────────────────────
@@ -82,6 +84,7 @@ function NumberField({
   suffix,
   min,
   max,
+  step,
 }: {
   label: string;
   description: string;
@@ -91,6 +94,7 @@ function NumberField({
   suffix?: string;
   min?: number;
   max?: number;
+  step?: number;
 }) {
   return (
     <div className="flex items-center justify-between gap-4 py-3 border-b border-border/40 last:border-0">
@@ -108,6 +112,7 @@ function NumberField({
           onChange={(e) => onChange(e.target.value)}
           min={min}
           max={max}
+          step={step ?? 1}
           className="w-28 text-right h-8 text-sm"
         />
         {suffix && <span className="text-xs text-muted-foreground w-10">{suffix}</span>}
@@ -129,12 +134,17 @@ export default function SystemSettingsPage() {
     PHONE_VERIFICATION_REQUIRED: "true",
     AUTO_ASSIGN_MASTER: "true",
     AUTO_BIND_AFTER_VERIFICATION: "false",
-    VIP_MONTHLY_PRICE: "3000",
-    PRO_MONTHLY_PRICE: "5000",
     MAX_USERS_PER_MASTER: "2000",
     MASTER_RESERVED_CAPACITY_PERCENT: "10",
     AUTO_REBALANCE: "true",
   });
+
+  const [pricing, setPricing] = useState<PricingSettings>({
+    dailyFee: "150",
+    minDays: "5",
+    maxDays: "365",
+  });
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
@@ -143,36 +153,63 @@ export default function SystemSettingsPage() {
     if (user?.role !== "admin") { navigate("/dashboard"); return; }
   }, [user, navigate]);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/system-settings", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error("Failed to load");
-      const data = await res.json() as { settings: SystemSettings };
-      setSettings(data.settings);
+      const [sysRes, pricingRes] = await Promise.all([
+        fetch("/api/admin/system-settings", { headers: { Authorization: `Bearer ${token}` } }),
+        fetch("/api/admin/settings", { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      if (!sysRes.ok) throw new Error("Failed to load system settings");
+      const sysData = await sysRes.json() as { settings: SystemSettings };
+      setSettings(sysData.settings);
+
+      if (pricingRes.ok) {
+        const pricingData = await pricingRes.json() as { dailyFee?: number | string; minDays?: number; maxDays?: number };
+        setPricing({
+          dailyFee: String(pricingData.dailyFee ?? 150),
+          minDays: String(pricingData.minDays ?? 5),
+          maxDays: String(pricingData.maxDays ?? 365),
+        });
+      }
     } catch {
       toast({ title: "Error", description: "Failed to load settings", variant: "destructive" });
     } finally {
       setLoading(false);
     }
-  };
+  }, [token, toast]);
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); }, [load]);
 
   const save = async () => {
     setSaving(true);
     try {
-      const res = await fetch("/api/admin/system-settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify(settings),
-      });
-      if (!res.ok) {
-        const err = await res.json() as { error?: string };
-        throw new Error(err.error ?? "Save failed");
+      const [sysRes, pricingRes] = await Promise.all([
+        fetch("/api/admin/system-settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify(settings),
+        }),
+        fetch("/api/admin/settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            dailyFee: parseFloat(pricing.dailyFee) || 150,
+            minDays: parseInt(pricing.minDays, 10) || 5,
+            maxDays: parseInt(pricing.maxDays, 10) || 365,
+          }),
+        }),
+      ]);
+
+      if (!sysRes.ok) {
+        const err = await sysRes.json() as { error?: string };
+        throw new Error(err.error ?? "System settings save failed");
       }
+      if (!pricingRes.ok) {
+        const err = await pricingRes.json() as { error?: string };
+        throw new Error(err.error ?? "Pricing settings save failed");
+      }
+
       setSavedAt(new Date().toLocaleTimeString());
       toast({ title: "Settings saved", description: "All changes take effect immediately." });
     } catch (err) {
@@ -184,6 +221,9 @@ export default function SystemSettingsPage() {
 
   const set = (key: keyof SystemSettings) => (v: string) =>
     setSettings((prev) => ({ ...prev, [key]: v }));
+
+  const setPrice = (key: keyof PricingSettings) => (v: string) =>
+    setPricing((prev) => ({ ...prev, [key]: v }));
 
   if (loading) {
     return (
@@ -227,6 +267,51 @@ export default function SystemSettingsPage() {
           </div>
         </div>
 
+        {/* Subscription Pricing */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <DollarSign className="h-4 w-4 text-green-400" />
+              Subscription Pricing
+            </CardTitle>
+            <CardDescription>
+              Daily trading-day subscription fee and allowed day range. All changes apply immediately across
+              the payment page, landing page calculator, and subscription activation.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <NumberField
+              label="Daily Subscription Fee"
+              description="Amount charged per trading day (Monday–Friday). This is the live rate shown to users."
+              value={pricing.dailyFee}
+              onChange={setPrice("dailyFee")}
+              icon={DollarSign}
+              suffix="KES"
+              min={1}
+              step={1}
+            />
+            <NumberField
+              label="Minimum Subscription Days"
+              description="Minimum number of trading days a user can purchase in a single payment."
+              value={pricing.minDays}
+              onChange={setPrice("minDays")}
+              icon={CalendarDays}
+              suffix="days"
+              min={1}
+            />
+            <NumberField
+              label="Maximum Subscription Days"
+              description="Maximum number of trading days a user can purchase in a single payment."
+              value={pricing.maxDays}
+              onChange={setPrice("maxDays")}
+              icon={CalendarDays}
+              suffix="days"
+              min={1}
+              max={3650}
+            />
+          </CardContent>
+        </Card>
+
         {/* Trial Settings */}
         <Card>
           <CardHeader className="pb-3">
@@ -234,7 +319,7 @@ export default function SystemSettingsPage() {
               <Clock className="h-4 w-4 text-blue-400" />
               Trial Subscription
             </CardTitle>
-            <CardDescription>Controls free trial eligibility and duration.</CardDescription>
+            <CardDescription>Controls free trial eligibility and duration. Trial days count as trading days (Mon–Fri only).</CardDescription>
           </CardHeader>
           <CardContent>
             <ToggleField
@@ -246,7 +331,7 @@ export default function SystemSettingsPage() {
             />
             <NumberField
               label="Free Trial Duration"
-              description="Number of days granted to eligible new users on first verification."
+              description="Number of trading days (Mon–Fri) granted to eligible new users on first verification."
               value={settings.FREE_TRIAL_DAYS}
               onChange={set("FREE_TRIAL_DAYS")}
               icon={Clock}
@@ -260,37 +345,6 @@ export default function SystemSettingsPage() {
               value={settings.PHONE_VERIFICATION_REQUIRED}
               onChange={set("PHONE_VERIFICATION_REQUIRED")}
               icon={CheckCircle2}
-            />
-          </CardContent>
-        </Card>
-
-        {/* Pricing */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-green-400" />
-              Subscription Pricing
-            </CardTitle>
-            <CardDescription>Monthly prices displayed on the subscription page (KES).</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <NumberField
-              label="VIP Monthly Price"
-              description="Standard VIP plan monthly fee in KES."
-              value={settings.VIP_MONTHLY_PRICE}
-              onChange={set("VIP_MONTHLY_PRICE")}
-              icon={DollarSign}
-              suffix="KES"
-              min={0}
-            />
-            <NumberField
-              label="PRO Monthly Price"
-              description="PRO plan monthly fee in KES."
-              value={settings.PRO_MONTHLY_PRICE}
-              onChange={set("PRO_MONTHLY_PRICE")}
-              icon={DollarSign}
-              suffix="KES"
-              min={0}
             />
           </CardContent>
         </Card>
@@ -365,7 +419,7 @@ export default function SystemSettingsPage() {
         <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
           <AlertCircle className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
           <p className="text-xs text-blue-300">
-            All settings are applied immediately — no server restart required. Workers read settings fresh on every tick (60-second cache).
+            All settings are applied immediately — no server restart required. Pricing changes are reflected on the payment page and landing page calculator instantly. Workers read settings fresh on every tick (60-second cache).
           </p>
         </div>
       </div>
