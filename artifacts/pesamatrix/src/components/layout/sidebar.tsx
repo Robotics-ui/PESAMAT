@@ -34,6 +34,8 @@ import {
   Network,
   Settings,
   FileText,
+  HeartPulse,
+  ClipboardList,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -64,19 +66,27 @@ const navItems = [
 ];
 
 const adminNavItems = [
-  { href: "/admin", label: "Admin Panel", icon: Shield },
-  { href: "/admin/distribution-masters", label: "Distribution Masters", icon: Network },
-  { href: "/admin/diagnostics", label: "MetaApi Diagnostics", icon: Activity },
-  { href: "/admin/media-center", label: "Media Center", icon: Image },
-  { href: "/admin/news", label: "Trading News", icon: Newspaper },
-  { href: "/admin/resources", label: "Resources", icon: BookOpen },
-  { href: "/admin/announcements", label: "Announcements", icon: Bell },
-  { href: "/admin/sms", label: "Bulk SMS", icon: MessageSquare },
-  { href: "/admin/faq", label: "FAQ Manager", icon: HelpCircle },
-  { href: "/admin/workers", label: "Worker Dashboard", icon: Activity },
-  { href: "/admin/funding", label: "Account Funding", icon: Wallet },
-  { href: "/admin/settings", label: "Platform Settings", icon: Settings },
-  { href: "/admin/trade-audit", label: "Trade Audit Journal", icon: FileText },
+  // ── Overview ──────────────────────────────────────────────────────────────
+  { href: "/admin/executive", label: "Executive Dashboard", icon: BarChart3, group: "Overview" },
+  { href: "/admin", label: "Admin Panel", icon: Shield, group: "Overview" },
+  // ── Infrastructure ────────────────────────────────────────────────────────
+  { href: "/admin/distribution-masters", label: "Distribution Masters", icon: Network, group: "Infrastructure" },
+  { href: "/admin/workers", label: "Background Workers", icon: Activity, group: "Infrastructure" },
+  { href: "/admin/health", label: "Platform Health", icon: HeartPulse, group: "Infrastructure" },
+  { href: "/admin/diagnostics", label: "MetaApi Diagnostics", icon: Activity, group: "Infrastructure" },
+  // ── Finance & Compliance ──────────────────────────────────────────────────
+  { href: "/admin/trade-audit", label: "Trade Audit Journal", icon: FileText, group: "Finance" },
+  { href: "/admin/master-audit", label: "Master Audit Log", icon: ClipboardList, group: "Finance" },
+  { href: "/admin/funding", label: "Account Funding", icon: Wallet, group: "Finance" },
+  // ── Content ───────────────────────────────────────────────────────────────
+  { href: "/admin/media-center", label: "Media Center", icon: Image, group: "Content" },
+  { href: "/admin/news", label: "Trading News", icon: Newspaper, group: "Content" },
+  { href: "/admin/resources", label: "Resources", icon: BookOpen, group: "Content" },
+  { href: "/admin/announcements", label: "Announcements", icon: Bell, group: "Content" },
+  { href: "/admin/faq", label: "FAQ Manager", icon: HelpCircle, group: "Content" },
+  { href: "/admin/sms", label: "Bulk SMS", icon: MessageSquare, group: "Content" },
+  // ── Configuration ─────────────────────────────────────────────────────────
+  { href: "/admin/settings", label: "Platform Settings", icon: Settings, group: "Config" },
 ];
 
 function NavContent({ onNavigate }: { onNavigate?: () => void }) {
@@ -110,30 +120,45 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
           );
         })}
 
-        {user?.role === "admin" && (
-          <div className="mt-4 space-y-1">
-            <p className="px-3 text-xs font-semibold text-muted-foreground/60 uppercase tracking-wider mb-1">Admin</p>
-            {adminNavItems.map(({ href, label, icon: Icon }) => {
-              const active = href === "/admin" ? location === "/admin" : location.startsWith(href);
-              return (
-                <Link key={href} href={href} onClick={onNavigate}>
-                  <div
-                    className={cn(
-                      "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer transition-colors border",
-                      active
-                        ? "bg-green-600/20 text-green-400 border-green-600/30"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground border-transparent"
-                    )}
-                  >
-                    <Icon className="h-4 w-4 shrink-0" />
-                    <span className="flex-1">{label}</span>
-                    {active && <ChevronRight className="h-3 w-3" />}
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        )}
+        {user?.role === "admin" && (() => {
+          // Group admin nav items by their `group` property
+          const groups: { label: string; items: typeof adminNavItems }[] = [];
+          const groupOrder = ["Overview", "Infrastructure", "Finance", "Content", "Config"];
+          for (const g of groupOrder) {
+            const items = adminNavItems.filter((i) => i.group === g);
+            if (items.length > 0) groups.push({ label: g, items });
+          }
+          return (
+            <div className="mt-4 space-y-3">
+              {groups.map(({ label, items }) => (
+                <div key={label} className="space-y-0.5">
+                  <p className="px-3 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wider mb-1">
+                    {label}
+                  </p>
+                  {items.map(({ href, label: itemLabel, icon: Icon }) => {
+                    const active = href === "/admin" ? location === "/admin" : location.startsWith(href);
+                    return (
+                      <Link key={href} href={href} onClick={onNavigate}>
+                        <div
+                          className={cn(
+                            "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors border",
+                            active
+                              ? "bg-green-600/20 text-green-400 border-green-600/30"
+                              : "text-muted-foreground hover:bg-muted hover:text-foreground border-transparent"
+                          )}
+                        >
+                          <Icon className="h-4 w-4 shrink-0" />
+                          <span className="flex-1">{itemLabel}</span>
+                          {active && <ChevronRight className="h-3 w-3" />}
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          );
+        })()}
       </nav>
 
       {/* User footer */}

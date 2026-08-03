@@ -50,6 +50,7 @@ const FundingTermsPage = lazy(() => import("@/pages/funding-terms"));
 const DistributionMastersPage = lazy(() => import("@/pages/admin/distribution-masters"));
 const SystemSettingsPage = lazy(() => import("@/pages/admin/system-settings"));
 const TradeAuditPage = lazy(() => import("@/pages/admin/trade-audit"));
+const ExecutiveDashboardPage = lazy(() => import("@/pages/admin/executive"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -119,6 +120,7 @@ function Router() {
         <Route path="/admin/distribution-masters" component={DistributionMastersPage} />
         <Route path="/admin/settings" component={SystemSettingsPage} />
         <Route path="/admin/trade-audit" component={TradeAuditPage} />
+        <Route path="/admin/executive" component={ExecutiveDashboardPage} />
         <Route component={NotFound} />
       </Switch>
     </Suspense>
