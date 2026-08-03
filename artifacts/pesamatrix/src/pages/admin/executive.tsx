@@ -81,6 +81,9 @@ interface AdminStats {
   totalCapacity: number;
   remainingCapacity: number;
   pendingMasterApprovals: number;
+  activeAccounts: number;
+  onlineDistributionMasters: number;
+  totalDistributionMasters: number;
 }
 
 interface WorkerSummary {
@@ -220,6 +223,100 @@ function UtilBar({ pct, label }: { pct: number; label: string }) {
         <div className={cn("h-full rounded-full transition-all duration-500", color)} style={{ width: `${Math.min(pct, 100)}%` }} />
       </div>
     </div>
+  );
+}
+
+// ── Distribution Network Capacity Card ────────────────────────────────────────
+
+function DistributionNetworkCapacityCard({ s }: { s: AdminStats | null }) {
+  const totalCapacity = s?.totalCapacity ?? 0;
+  const activeAccounts = s?.activeAccounts ?? 0;
+  const remainingCapacity = s?.remainingCapacity ?? 0;
+  const usedPct = totalCapacity > 0 ? Math.round((activeAccounts / totalCapacity) * 100) : 0;
+  const onlineCount = s?.onlineDistributionMasters ?? 0;
+  const totalMasters = s?.totalDistributionMasters ?? 0;
+
+  const barColor =
+    usedPct >= 95 ? "bg-red-500" :
+    usedPct >= 80 ? "bg-orange-500" :
+    usedPct >= 50 ? "bg-yellow-500" :
+    "bg-green-500";
+  const pctColor =
+    usedPct >= 95 ? "text-red-400" :
+    usedPct >= 80 ? "text-orange-400" :
+    usedPct >= 50 ? "text-yellow-400" :
+    "text-green-400";
+
+  return (
+    <Card className="border-border">
+      <CardContent className="pt-4 pb-4">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="h-8 w-8 rounded-lg bg-purple-500/15 flex items-center justify-center">
+            <Cpu className="h-4 w-4 text-purple-400" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-foreground">Distribution Network Capacity</p>
+            <p className="text-xs text-muted-foreground">Live · calculated from ONLINE Distribution Masters</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+          <div className="text-center p-3 rounded-lg bg-muted/30">
+            <p className="text-xl font-bold text-foreground">{s ? fmt(totalCapacity) : "—"}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Total Capacity</p>
+          </div>
+          <div className="text-center p-3 rounded-lg bg-muted/30">
+            <p className="text-xl font-bold text-green-400">{s ? fmt(activeAccounts) : "—"}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Active Subscribers</p>
+          </div>
+          <div className="text-center p-3 rounded-lg bg-muted/30">
+            <p className="text-xl font-bold text-blue-400">{s ? fmt(remainingCapacity) : "—"}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Remaining Capacity</p>
+          </div>
+          <div className="text-center p-3 rounded-lg bg-muted/30">
+            <p className={cn("text-xl font-bold", pctColor)}>{s ? `${usedPct}%` : "—"}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Utilization</p>
+          </div>
+        </div>
+
+        {/* Utilization progress bar */}
+        <div className="space-y-1.5 mb-4">
+          <div className="flex justify-between text-xs">
+            <span className="text-muted-foreground">Capacity Used</span>
+            <span className={pctColor}>{s ? `${usedPct}%` : "—"}</span>
+          </div>
+          <div className="h-2.5 rounded-full bg-muted overflow-hidden">
+            <div
+              className={cn("h-full rounded-full transition-all duration-700", barColor)}
+              style={{ width: s ? `${Math.min(usedPct, 100)}%` : "0%" }}
+            />
+          </div>
+          <div className="flex justify-between text-[10px] text-muted-foreground">
+            <span>0</span>
+            <span className="text-green-500">▌50%</span>
+            <span className="text-yellow-500">▌80%</span>
+            <span className="text-orange-500">▌95%</span>
+            <span>{s ? fmt(totalCapacity) : "—"}</span>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Server className="h-3.5 w-3.5 text-purple-400" />
+            <span>
+              Distribution Masters:{" "}
+              <span className="text-green-400 font-medium">{onlineCount} Online</span>
+              {" / "}
+              <span className="text-foreground font-medium">{totalMasters} Total</span>
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Zap className="h-3.5 w-3.5 text-yellow-400" />
+            <span>Maximum Platform Target: <span className="text-foreground font-medium">50,000+</span></span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -372,39 +469,29 @@ export default function ExecutiveDashboard() {
             {/* ── Distribution Masters ── */}
             <div className="space-y-2">
               <SectionHeader icon={Server} title="Distribution Masters" color="text-purple-400" />
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                 <KpiCard
                   label="Online Masters"
-                  value={fmt(a?.onlineMasters)}
-                  sub={`of ${fmt(a?.totalMasters)} total`}
+                  value={fmt(s?.onlineDistributionMasters)}
+                  sub={`of ${fmt(s?.totalDistributionMasters)} total`}
                   icon={Wifi}
                   accent="green"
                   href="/admin/distribution-masters"
                 />
                 <KpiCard
                   label="Offline Masters"
-                  value={fmt(a?.offlineMasters)}
+                  value={s ? fmt(Math.max(0, (s.totalDistributionMasters ?? 0) - (s.onlineDistributionMasters ?? 0))) : "—"}
                   icon={WifiOff}
-                  accent={a?.offlineMasters ? "red" : "blue"}
+                  accent={s && (s.totalDistributionMasters - s.onlineDistributionMasters) > 0 ? "red" : "blue"}
                   href="/admin/distribution-masters"
                 />
                 <KpiCard label="Master Health" value={a ? `${a.masterHealthPercent}%` : "—"} icon={Activity} accent="green" />
-                <KpiCard label="Platform Capacity" value={a ? `${a.masterUtilizationPercent}%` : "—"} sub={`${fmt(a?.totalCurrentLoad)} / ${fmt(a?.totalCapacity)}`} icon={Cpu} accent={a && a.masterUtilizationPercent > 80 ? "red" : "orange"} />
                 <KpiCard label="Avg Load" value={a ? `${a.averageLoadPercent}%` : "—"} icon={Activity} accent="cyan" />
                 <KpiCard label="Slave Accounts" value={fmt(a?.totalSlaveAccounts)} sub={`${fmt(a?.liveAccounts)} live · ${fmt(a?.demoAccounts)} demo`} icon={Database} accent="blue" />
               </div>
 
-              {/* Utilization bars */}
-              {a && a.totalMasters > 0 && (
-                <Card>
-                  <CardContent className="pt-4 pb-4 space-y-3">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Master Utilization</p>
-                    <UtilBar pct={a.averageLoadPercent} label="Average load" />
-                    <UtilBar pct={a.highestLoadPercent} label="Highest load" />
-                    <UtilBar pct={a.masterUtilizationPercent} label="Total capacity used" />
-                  </CardContent>
-                </Card>
-              )}
+              {/* Distribution Network Capacity Card */}
+              <DistributionNetworkCapacityCard s={s} />
             </div>
 
             {/* ── Replication & Trading ── */}
@@ -580,7 +667,7 @@ export default function ExecutiveDashboard() {
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-semibold flex items-center gap-2">
                       <Server className="h-4 w-4 text-purple-400" />
-                      Platform Capacity Overview
+                      Distribution Network Capacity Overview
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="pt-0">
