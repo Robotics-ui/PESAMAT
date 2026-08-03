@@ -2831,25 +2831,40 @@ export default function AdminPage() {
           ))}
         </div>
 
-        {/* Platform Capacity Widget */}
+        {/* Distribution Network Capacity Widget */}
         {stats && (() => {
-          const pct = (stats as unknown as { capacityPercentage: number }).capacityPercentage ?? 0;
-          const active = (stats as unknown as { activeSlaveAccounts: number }).activeSlaveAccounts ?? 0;
-          const total = (stats as unknown as { totalCapacity: number }).totalCapacity ?? 2000;
-          const remaining = (stats as unknown as { remainingCapacity: number }).remainingCapacity ?? (total - active);
-          const isWarning80 = pct >= 80 && pct < 90;
-          const isWarning90 = pct >= 90 && pct < 100;
-          const isFull = pct >= 100;
-          const barColor = isFull ? "bg-red-500" : isWarning90 ? "bg-orange-500" : isWarning80 ? "bg-yellow-500" : "bg-blue-500";
+          const s = stats as unknown as {
+            capacityPercentage: number;
+            activeAccounts: number;
+            totalCapacity: number;
+            remainingCapacity: number;
+            onlineDistributionMasters: number;
+            totalDistributionMasters: number;
+          };
+          const pct = s.capacityPercentage ?? 0;
+          const active = s.activeAccounts ?? 0;
+          const total = s.totalCapacity ?? 0;
+          const remaining = s.remainingCapacity ?? Math.max(0, total - active);
+          const onlineMasters = s.onlineDistributionMasters ?? 0;
+          const totalMasters = s.totalDistributionMasters ?? 0;
+
+          // Color coding: 0-50% green, 50-80% yellow, 80-95% orange, 95%+ red
+          const isFull    = pct >= 95;
+          const isOrange  = pct >= 80 && pct < 95;
+          const isYellow  = pct >= 50 && pct < 80;
+          const barColor  = isFull ? "bg-red-500" : isOrange ? "bg-orange-500" : isYellow ? "bg-yellow-500" : "bg-green-500";
+          const pctColor  = isFull ? "text-red-400" : isOrange ? "text-orange-400" : isYellow ? "text-yellow-400" : "text-green-400";
+          const borderCls = isFull ? "border-red-500/40" : isOrange ? "border-orange-500/30" : isYellow ? "border-yellow-500/30" : "";
+
           return (
-            <Card className={`border-border ${isFull ? "border-red-500/40" : isWarning90 ? "border-orange-500/30" : isWarning80 ? "border-yellow-500/30" : ""}`}>
+            <Card className={`border-border ${borderCls}`}>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <CardTitle className="text-sm font-semibold flex items-center gap-2">
                     <Server className="h-4 w-4 text-blue-400" />
-                    Platform Capacity
+                    Distribution Network Capacity
                   </CardTitle>
-                  <span className={`text-xs font-bold ${isFull ? "text-red-400" : isWarning90 ? "text-orange-400" : isWarning80 ? "text-yellow-400" : "text-muted-foreground"}`}>
+                  <span className={`text-xs font-bold ${pctColor}`}>
                     {pct}% used
                   </span>
                 </div>
@@ -2859,19 +2874,19 @@ export default function AdminPage() {
                 {isFull && (
                   <div className="flex items-center gap-2 rounded-lg bg-red-500/10 border border-red-500/30 px-3 py-2 text-sm text-red-400">
                     <AlertTriangle className="h-4 w-4 shrink-0" />
-                    Platform at full capacity. No new slave accounts can be activated until existing ones are removed.
+                    Network at full capacity. Add more Distribution Masters or remove inactive accounts.
                   </div>
                 )}
-                {isWarning90 && (
+                {isOrange && (
                   <div className="flex items-center gap-2 rounded-lg bg-orange-500/10 border border-orange-500/30 px-3 py-2 text-sm text-orange-400">
                     <AlertTriangle className="h-4 w-4 shrink-0" />
-                    Platform is at {pct}% capacity — approaching the limit. Plan accordingly.
+                    Network is at {pct}% capacity — approaching the limit. Consider adding more Distribution Masters.
                   </div>
                 )}
-                {isWarning80 && (
+                {isYellow && (
                   <div className="flex items-center gap-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30 px-3 py-2 text-sm text-yellow-400">
                     <AlertCircle className="h-4 w-4 shrink-0" />
-                    Platform is at {pct}% capacity — nearing 80% threshold.
+                    Network is at {pct}% capacity — nearing 80% threshold.
                   </div>
                 )}
                 {/* Progress bar */}
@@ -2885,17 +2900,28 @@ export default function AdminPage() {
                   <div className="grid grid-cols-3 gap-3 text-center text-xs pt-1">
                     <div>
                       <p className="text-muted-foreground">Total Capacity</p>
-                      <p className="font-bold text-foreground text-base">{total.toLocaleString()}</p>
+                      <p className="font-bold text-foreground text-base">
+                        {total > 0 ? total.toLocaleString() : <span className="text-muted-foreground text-sm">No masters online</span>}
+                      </p>
                     </div>
                     <div>
-                      <p className="text-muted-foreground">Active Accounts</p>
-                      <p className={`font-bold text-base ${isFull ? "text-red-400" : isWarning90 ? "text-orange-400" : "text-foreground"}`}>{active.toLocaleString()}</p>
+                      <p className="text-muted-foreground">Active Subscribers</p>
+                      <p className={`font-bold text-base ${isFull ? "text-red-400" : isOrange ? "text-orange-400" : "text-foreground"}`}>{active.toLocaleString()}</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Remaining</p>
-                      <p className={`font-bold text-base ${remaining === 0 ? "text-red-400" : remaining < 200 ? "text-orange-400" : "text-green-400"}`}>{remaining.toLocaleString()}</p>
+                      <p className={`font-bold text-base ${remaining === 0 ? "text-red-400" : remaining < total * 0.1 ? "text-orange-400" : "text-green-400"}`}>{remaining.toLocaleString()}</p>
                     </div>
                   </div>
+                </div>
+                {/* Distribution Masters status + target */}
+                <div className="flex items-center justify-between border-t border-border pt-3 text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <span className={`inline-block h-2 w-2 rounded-full ${onlineMasters > 0 ? "bg-green-500" : "bg-muted-foreground"}`} />
+                    <span className="text-muted-foreground">Distribution Masters:</span>
+                    <span className="font-semibold text-foreground">{onlineMasters} Online / {totalMasters} Total</span>
+                  </div>
+                  <span className="text-muted-foreground">Target: <span className="font-semibold text-foreground">50,000+</span></span>
                 </div>
               </CardContent>
             </Card>

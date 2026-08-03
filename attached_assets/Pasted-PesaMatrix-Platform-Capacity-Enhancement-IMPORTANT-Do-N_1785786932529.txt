@@ -1,0 +1,245 @@
+PesaMatrix Platform Capacity Enhancement
+
+IMPORTANT
+
+Do NOT rewrite or remove any existing functionality.
+
+The current architecture already supports Distribution Masters.
+
+The Platform Capacity widget is still showing a hardcoded capacity of 2,000.
+
+This is incorrect.
+
+The platform must calculate capacity dynamically from Distribution Masters.
+
+====================================================
+1. REMOVE HARDCODED CAPACITY
+====================================================
+
+Remove every hardcoded reference to:
+
+2000
+
+2500
+
+10000
+
+15000
+
+or any fixed capacity.
+
+Capacity must never be hardcoded.
+
+====================================================
+2. CALCULATE PLATFORM CAPACITY
+====================================================
+
+Read all ONLINE Distribution Masters.
+
+Calculate:
+
+Total Capacity =
+SUM(distribution_masters.capacity)
+
+Example:
+
+Master A = 2500
+
+Master B = 2500
+
+Master C = 2500
+
+Master D = 2500
+
+Master E = 2500
+
+Master F = 2500
+
+Master G = 2500
+
+Master H = 2500
+
+Platform Capacity = 20,000
+
+If later another master is added:
+
+Platform Capacity automatically becomes 22,500.
+
+No code changes should be required.
+
+====================================================
+3. ACTIVE ACCOUNTS
+====================================================
+
+Calculate
+
+Active Accounts =
+COUNT(active master_bindings)
+
+This represents all subscribers currently assigned to Distribution Masters.
+
+====================================================
+4. REMAINING CAPACITY
+====================================================
+
+Remaining Capacity
+
+=
+
+Total Capacity
+
+-
+
+Active Accounts
+
+====================================================
+5. UTILIZATION
+====================================================
+
+Capacity Used %
+
+=
+
+(Active Accounts / Total Capacity) × 100
+
+Show a progress bar.
+
+Color coding:
+
+0-50% Green
+
+50-80% Yellow
+
+80-95% Orange
+
+95%+ Red
+
+====================================================
+6. PLATFORM LIMIT
+====================================================
+
+The platform is designed to support up to 50,000+ slave accounts.
+
+Do NOT impose an artificial limit of 2,000.
+
+Maximum supported capacity depends entirely on the number of ONLINE Distribution Masters.
+
+Example:
+
+8 Masters × 2,500 = 20,000
+
+12 Masters × 2,500 = 30,000
+
+20 Masters × 2,500 = 50,000
+
+30 Masters × 2,500 = 75,000
+
+The dashboard should automatically scale.
+
+====================================================
+7. ANALYTICS API
+====================================================
+
+Extend
+
+GET /api/admin/analytics
+
+Return:
+
+total_capacity
+
+active_accounts
+
+remaining_capacity
+
+capacity_used_percent
+
+online_distribution_masters
+
+offline_distribution_masters
+
+total_distribution_masters
+
+average_master_utilization
+
+largest_master_load
+
+smallest_master_load
+
+====================================================
+8. DASHBOARD CARD
+====================================================
+
+Replace the current Platform Capacity widget.
+
+Display:
+
+Platform Capacity
+
+20,000
+
+Active Subscribers
+
+3,425
+
+Remaining Capacity
+
+16,575
+
+Utilization
+
+17%
+
+Distribution Masters
+
+8 Online / 8 Total
+
+Maximum Platform Target
+
+50,000+
+
+The value "50,000+" is the platform design target, not a hard limit.
+
+====================================================
+9. AUTO UPDATE
+====================================================
+
+Refresh these values automatically whenever:
+
+a Distribution Master is added
+
+a Distribution Master is removed
+
+capacity changes
+
+a master goes offline
+
+a master reconnects
+
+subscribers are assigned
+
+subscribers expire
+
+rebalancer moves users
+
+====================================================
+10. BACKWARD COMPATIBILITY
+====================================================
+
+Do NOT modify:
+
+Authentication
+
+MetaApi CopyFactory
+
+Workers
+
+Subscriptions
+
+Payments
+
+Bindings
+
+Existing APIs
+
+Only replace the hardcoded Platform Capacity calculation with dynamic calculations based on Distribution Masters.

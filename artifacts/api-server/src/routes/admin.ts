@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { eq, inArray, sum, count, asc, desc, isNotNull, sql } from "drizzle-orm";
 import crypto from "crypto";
-import { db, usersTable, subscriptionsTable, paymentsTable, slaveAccountsTable, strategiesTable, adminSettingsTable, bindingsTable, masterAccountsTable, masterAccountAuditLogsTable, passwordResetTokensTable, referralsTable, promoCodesTable, customerCareSettingsTable, smsQueueTable, tradeLogsTable } from "@workspace/db";
+import { db, usersTable, subscriptionsTable, paymentsTable, slaveAccountsTable, strategiesTable, adminSettingsTable, bindingsTable, masterAccountsTable, masterAccountAuditLogsTable, passwordResetTokensTable, referralsTable, promoCodesTable, customerCareSettingsTable, smsQueueTable, tradeLogsTable, distributionMastersTable } from "@workspace/db";
 import { SuspendUserParams, ActivateUserParams, UpdateAdminSettingsBody } from "@workspace/api-zod";
 import { authenticate, requireAdmin } from "../middlewares/authenticate";
 import { notifyAccountSuspended, notifyMasterAccountApproved } from "../lib/smsNotifier";
@@ -41,29 +41,38 @@ router.get("/pricing", async (_req, res): Promise<void> => {
   res.json({ dailyFee: parseFloat(settings.dailyFee as string), minDays: settings.minDays, maxDays: settings.maxDays });
 });
 
-const PLATFORM_CAPACITY = 2000;
-
 router.get("/admin/stats", authenticate, requireAdmin, async (_req, res): Promise<void> => {
-  const [totalUsersResult] = await db.select({ count: count() }).from(usersTable);
-  const [activeSubsResult] = await db
-    .select({ count: count() })
-    .from(subscriptionsTable)
-    .where(eq(subscriptionsTable.status, "active"));
-  const [revenueResult] = await db
-    .select({ total: sum(paymentsTable.amount) })
-    .from(paymentsTable)
-    .where(eq(paymentsTable.status, "completed"));
-  const [slaveCountResult] = await db.select({ count: count() }).from(slaveAccountsTable);
-  const [strategyCountResult] = await db.select({ count: count() }).from(strategiesTable);
-  const [paymentCountResult] = await db.select({ count: count() }).from(paymentsTable);
-  const [pendingMasterResult] = await db
-    .select({ count: count() })
-    .from(masterAccountsTable)
-    .where(eq(masterAccountsTable.status, "pending_approval"));
+  const [
+    totalUsersResult,
+    activeSubsResult,
+    revenueResult,
+    slaveCountResult,
+    strategyCountResult,
+    paymentCountResult,
+    pendingMasterResult,
+    capacitySumResult,
+    onlineMastersResult,
+    totalMastersResult,
+    activeBindingsResult,
+  ] = await Promise.all([
+    db.select({ count: count() }).from(usersTable).then(r => r[0]!),
+    db.select({ count: count() }).from(subscriptionsTable).where(eq(subscriptionsTable.status, "active")).then(r => r[0]!),
+    db.select({ total: sum(paymentsTable.amount) }).from(paymentsTable).where(eq(paymentsTable.status, "completed")).then(r => r[0]!),
+    db.select({ count: count() }).from(slaveAccountsTable).then(r => r[0]!),
+    db.select({ count: count() }).from(strategiesTable).then(r => r[0]!),
+    db.select({ count: count() }).from(paymentsTable).then(r => r[0]!),
+    db.select({ count: count() }).from(masterAccountsTable).where(eq(masterAccountsTable.status, "pending_approval")).then(r => r[0]!),
+    db.select({ total: sum(distributionMastersTable.capacity) }).from(distributionMastersTable).where(eq(distributionMastersTable.status, "ONLINE")).then(r => r[0]!),
+    db.select({ count: count() }).from(distributionMastersTable).where(eq(distributionMastersTable.status, "ONLINE")).then(r => r[0]!),
+    db.select({ count: count() }).from(distributionMastersTable).then(r => r[0]!),
+    db.select({ count: count() }).from(bindingsTable).where(eq(bindingsTable.status, "active")).then(r => r[0]!),
+  ]);
 
+  const totalCapacity = Number(capacitySumResult.total ?? 0);
+  const activeAccounts = Number(activeBindingsResult.count);
   const activeSlaveAccounts = Number(slaveCountResult.count);
-  const remainingCapacity = Math.max(0, PLATFORM_CAPACITY - activeSlaveAccounts);
-  const capacityPercentage = Math.round((activeSlaveAccounts / PLATFORM_CAPACITY) * 100);
+  const remainingCapacity = Math.max(0, totalCapacity - activeAccounts);
+  const capacityPercentage = totalCapacity > 0 ? Math.round((activeAccounts / totalCapacity) * 100) : 0;
 
   res.json({
     totalUsers: totalUsersResult.count,
@@ -73,9 +82,55 @@ router.get("/admin/stats", authenticate, requireAdmin, async (_req, res): Promis
     activeStrategies: strategyCountResult.count,
     totalPayments: paymentCountResult.count,
     pendingMasterApprovals: pendingMasterResult.count,
-    totalCapacity: PLATFORM_CAPACITY,
+    totalCapacity,
+    activeAccounts,
     remainingCapacity,
     capacityPercentage,
+    onlineDistributionMasters: Number(onlineMastersResult.count),
+    totalDistributionMasters: Number(totalMastersResult.count),
+  });
+});
+
+router.get("/admin/analytics", authenticate, requireAdmin, async (_req, res): Promise<void> => {
+  const [
+    capacitySumResult,
+    onlineMastersResult,
+    offlineMastersResult,
+    totalMastersResult,
+    activeBindingsResult,
+    masterLoads,
+  ] = await Promise.all([
+    db.select({ total: sum(distributionMastersTable.capacity) }).from(distributionMastersTable).where(eq(distributionMastersTable.status, "ONLINE")).then(r => r[0]!),
+    db.select({ count: count() }).from(distributionMastersTable).where(eq(distributionMastersTable.status, "ONLINE")).then(r => r[0]!),
+    db.select({ count: count() }).from(distributionMastersTable).where(sql`${distributionMastersTable.status} != 'ONLINE'`).then(r => r[0]!),
+    db.select({ count: count() }).from(distributionMastersTable).then(r => r[0]!),
+    db.select({ count: count() }).from(bindingsTable).where(eq(bindingsTable.status, "active")).then(r => r[0]!),
+    db.select({ currentLoad: distributionMastersTable.currentLoad, capacity: distributionMastersTable.capacity }).from(distributionMastersTable).where(eq(distributionMastersTable.status, "ONLINE")),
+  ]);
+
+  const totalCapacity = Number(capacitySumResult.total ?? 0);
+  const activeAccounts = Number(activeBindingsResult.count);
+  const remainingCapacity = Math.max(0, totalCapacity - activeAccounts);
+  const capacityUsedPercent = totalCapacity > 0 ? Math.round((activeAccounts / totalCapacity) * 100) : 0;
+  const onlineCount = Number(onlineMastersResult.count);
+
+  const utilizations = masterLoads.map(m => m.capacity > 0 ? Math.round((m.currentLoad / m.capacity) * 100) : 0);
+  const avgUtilization = utilizations.length > 0 ? Math.round(utilizations.reduce((a, b) => a + b, 0) / utilizations.length) : 0;
+  const loads = masterLoads.map(m => m.currentLoad);
+  const largestMasterLoad = loads.length > 0 ? Math.max(...loads) : 0;
+  const smallestMasterLoad = loads.length > 0 ? Math.min(...loads) : 0;
+
+  res.json({
+    total_capacity: totalCapacity,
+    active_accounts: activeAccounts,
+    remaining_capacity: remainingCapacity,
+    capacity_used_percent: capacityUsedPercent,
+    online_distribution_masters: onlineCount,
+    offline_distribution_masters: Number(offlineMastersResult.count),
+    total_distribution_masters: Number(totalMastersResult.count),
+    average_master_utilization: avgUtilization,
+    largest_master_load: largestMasterLoad,
+    smallest_master_load: smallestMasterLoad,
   });
 });
 
