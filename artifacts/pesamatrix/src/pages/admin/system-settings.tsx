@@ -191,7 +191,7 @@ export default function SystemSettingsPage() {
           body: JSON.stringify(settings),
         }),
         fetch("/api/admin/settings", {
-          method: "PUT",
+          method: "PATCH",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({
             dailyFee: parseFloat(pricing.dailyFee) || 150,
