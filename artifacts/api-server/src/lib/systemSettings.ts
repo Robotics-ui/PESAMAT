@@ -100,7 +100,11 @@ export async function getSystemSettingBool(
 
 export async function getAllSystemSettings(): Promise<Record<string, string>> {
   const m = await getCache();
-  return Object.fromEntries(m.entries());
+  // Only return keys that are currently recognised — prevents stale DB rows
+  // from being loaded into the admin UI and re-submitted on save.
+  return Object.fromEntries(
+    [...m.entries()].filter(([k]) => k in SYSTEM_SETTING_DEFAULTS),
+  );
 }
 
 // ── Upsert (for admin PUT endpoint) ──────────────────────────────────────────
