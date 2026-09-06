@@ -91,49 +91,6 @@ router.get("/admin/stats", authenticate, requireAdmin, async (_req, res): Promis
   });
 });
 
-router.get("/admin/analytics", authenticate, requireAdmin, async (_req, res): Promise<void> => {
-  const [
-    capacitySumResult,
-    onlineMastersResult,
-    offlineMastersResult,
-    totalMastersResult,
-    activeBindingsResult,
-    masterLoads,
-  ] = await Promise.all([
-    db.select({ total: sum(distributionMastersTable.capacity) }).from(distributionMastersTable).where(eq(distributionMastersTable.status, "ONLINE")).then(r => r[0]!),
-    db.select({ count: count() }).from(distributionMastersTable).where(eq(distributionMastersTable.status, "ONLINE")).then(r => r[0]!),
-    db.select({ count: count() }).from(distributionMastersTable).where(sql`${distributionMastersTable.status} != 'ONLINE'`).then(r => r[0]!),
-    db.select({ count: count() }).from(distributionMastersTable).then(r => r[0]!),
-    db.select({ count: count() }).from(bindingsTable).where(eq(bindingsTable.status, "active")).then(r => r[0]!),
-    db.select({ currentLoad: distributionMastersTable.currentLoad, capacity: distributionMastersTable.capacity }).from(distributionMastersTable).where(eq(distributionMastersTable.status, "ONLINE")),
-  ]);
-
-  const totalCapacity = Number(capacitySumResult.total ?? 0);
-  const activeAccounts = Number(activeBindingsResult.count);
-  const remainingCapacity = Math.max(0, totalCapacity - activeAccounts);
-  const capacityUsedPercent = totalCapacity > 0 ? Math.round((activeAccounts / totalCapacity) * 100) : 0;
-  const onlineCount = Number(onlineMastersResult.count);
-
-  const utilizations = masterLoads.map(m => m.capacity > 0 ? Math.round((m.currentLoad / m.capacity) * 100) : 0);
-  const avgUtilization = utilizations.length > 0 ? Math.round(utilizations.reduce((a, b) => a + b, 0) / utilizations.length) : 0;
-  const loads = masterLoads.map(m => m.currentLoad);
-  const largestMasterLoad = loads.length > 0 ? Math.max(...loads) : 0;
-  const smallestMasterLoad = loads.length > 0 ? Math.min(...loads) : 0;
-
-  res.json({
-    total_capacity: totalCapacity,
-    active_accounts: activeAccounts,
-    remaining_capacity: remainingCapacity,
-    capacity_used_percent: capacityUsedPercent,
-    online_distribution_masters: onlineCount,
-    offline_distribution_masters: Number(offlineMastersResult.count),
-    total_distribution_masters: Number(totalMastersResult.count),
-    average_master_utilization: avgUtilization,
-    largest_master_load: largestMasterLoad,
-    smallest_master_load: smallestMasterLoad,
-  });
-});
-
 router.get("/admin/referral-stats", authenticate, requireAdmin, async (_req, res): Promise<void> => {
   const [totalResult] = await db.select({ count: count() }).from(referralsTable);
   const [rewardedResult] = await db.select({ count: count() }).from(referralsTable).where(eq(referralsTable.status, "rewarded"));

@@ -3,7 +3,6 @@
  *
  * GET  /api/admin/settings  — returns all runtime-configurable settings
  * PUT  /api/admin/settings  — bulk-upserts one or more settings
- * GET  /api/admin/analytics — returns latest cached platform analytics
  * GET  /api/admin/trade-audit — paginated trade audit log with filters
  */
 
@@ -16,7 +15,6 @@ import {
   upsertSystemSettings,
   SYSTEM_SETTING_DEFAULTS,
 } from "../lib/systemSettings";
-import { getCachedAnalytics } from "../lib/analyticsWorker";
 import { logger } from "../lib/logger";
 
 const router = Router();
@@ -66,16 +64,6 @@ router.put("/admin/system-settings", authenticate, requireAdmin, async (req, res
     logger.error({ err }, "Failed to update system settings");
     res.status(500).json({ error: "Failed to update settings" });
   }
-});
-
-// ── GET /api/admin/analytics ─────────────────────────────────────────────────
-router.get("/admin/analytics", authenticate, requireAdmin, async (_req, res): Promise<void> => {
-  const data = getCachedAnalytics();
-  if (!data) {
-    res.status(503).json({ error: "Analytics not yet collected — try again in a moment" });
-    return;
-  }
-  res.json(data);
 });
 
 // ── GET /api/admin/trade-audit ───────────────────────────────────────────────

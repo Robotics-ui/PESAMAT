@@ -142,15 +142,29 @@ export default function DistributionMastersPage() {
 
   const headers = { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) };
 
-  const { data: masters = [], isLoading } = useQuery<DistributionMaster[]>({
+  const { data: masters = [], isLoading, isError: mastersError } = useQuery<DistributionMaster[]>({
     queryKey: ["distribution-masters"],
-    queryFn: () => fetch(`${API}/admin/distribution-masters`, { headers }).then((r) => r.json()),
+    queryFn: async () => {
+      const response = await fetch(`${API}/admin/distribution-masters`, { headers });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({})) as { error?: string };
+        throw new Error(body.error ?? `Failed to load distribution masters (${response.status})`);
+      }
+      return response.json() as Promise<DistributionMaster[]>;
+    },
     refetchInterval: 15_000,
   });
 
   const { data: analytics } = useQuery<Analytics>({
     queryKey: ["admin-analytics"],
-    queryFn: () => fetch(`${API}/admin/analytics`, { headers }).then((r) => r.json()),
+    queryFn: async () => {
+      const response = await fetch(`${API}/admin/analytics`, { headers });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({})) as { error?: string };
+        throw new Error(body.error ?? `Failed to load analytics (${response.status})`);
+      }
+      return response.json() as Promise<Analytics>;
+    },
     refetchInterval: 60_000,
   });
 
@@ -291,6 +305,12 @@ export default function DistributionMastersPage() {
             {isLoading ? (
               <div className="flex justify-center py-10">
                 <div className="h-6 w-6 rounded-full border-2 border-blue-600 border-t-transparent animate-spin" />
+              </div>
+            ) : mastersError ? (
+              <div className="text-center py-10 text-red-400">
+                <AlertTriangle className="h-8 w-8 mx-auto mb-2 opacity-70" />
+                <p className="text-sm">Could not load Distribution Masters.</p>
+                <p className="text-xs text-muted-foreground mt-1">Refresh the page and try again.</p>
               </div>
             ) : masters.length === 0 ? (
               <div className="text-center py-10 text-muted-foreground">
