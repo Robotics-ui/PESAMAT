@@ -18,3 +18,4 @@
 - [Distribution Masters scaling](distribution-masters-scaling.md) — new multi-master architecture: 3 DB tables, 5 workers, 1 API router, 1 admin page; AppLayout import pattern; backward-compat with existing system.
 - [System Settings Module](system-settings-module.md) — key-value runtime config in system_settings table; add new keys to SYSTEM_SETTING_DEFAULTS in systemSettings.ts; 60s cache; PUT validates against that map.
 - [Trade Audit Journal](trade-audit-module.md) — trade_audit_logs table + admin UI at /admin/trade-audit; webhook wiring NOT yet done — must insert into table from CopyFactory webhook handler.
+- [Publishing health probe](publishing-health-probe.md) — this deployment currently probes GET /api; keep that route unauthenticated and return a lightweight 200 health response.
